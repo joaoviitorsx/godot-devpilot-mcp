@@ -4,6 +4,31 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.4.0] — 2026-05-04 — Validation Score + Autoload Manager Full
+
+### Added
+
+#### Score tools (`scoreTools.ts`)
+- `godot_validation_snapshot` — captures health snapshot (errors, circular deps, unused resources, FPS) and computes 0-100 score.
+- `godot_validation_compare(before, after)` — diffs two snapshots; returns regressions/improvements/score_delta/verdict.
+- `godot_run_with_score(method, params)` — captures before → executes RPC → captures after → returns full diff. Single-call impact measurement.
+
+#### Autoload Manager (`autoloadTools.ts` + GDScript)
+- `godot_list_autoloads_full` — returns name, path, enabled (* prefix), script_exists, loads_ok, class_name per autoload.
+- `godot_reload_autoload(name)` — remove + re-add to pick up script changes.
+- `godot_reorder_autoloads(order[])` — full ordered list; reorders load priority.
+
+#### GDScript (`dispatcher.gd`)
+- `_project_get_autoloads_full`, `_project_reload_autoload`, `_project_reorder_autoloads`
+- Routes: `project.get_autoloads_full`, `project.reload_autoload`, `project.reorder_autoloads`
+
+### Stats
+- New tools: 6 (3 score + 3 autoload)
+- Total tools: ~204
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.3.0] — 2026-05-04 — Transaction + Diff Preview + Convention Detector
 
 ### Added

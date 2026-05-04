@@ -102,6 +102,12 @@ func dispatch(request: Variant) -> Dictionary:
 			return Protocol.success_envelope(request_id, _project_add_autoload(params))
 		"project.remove_autoload":
 			return Protocol.success_envelope(request_id, _project_remove_autoload(params))
+		"project.get_autoloads_full":
+			return Protocol.success_envelope(request_id, _project_get_autoloads_full(params))
+		"project.reload_autoload":
+			return Protocol.success_envelope(request_id, _project_reload_autoload(params))
+		"project.reorder_autoloads":
+			return Protocol.success_envelope(request_id, _project_reorder_autoloads(params))
 		"scene.get_tree":
 			return Protocol.success_envelope(request_id, _scene_tools.get_tree(params))
 		"scene.get_summary":
@@ -674,6 +680,78 @@ func _project_remove_autoload(params: Dictionary) -> Dictionary:
 		{"name": singleton_name},
 		"Autoload removed."
 	)
+
+
+func _project_get_autoloads_full(_params: Dictionary) -> Dictionary:
+	var autoloads: Array[Dictionary] = []
+	for prop in ProjectSettings.get_property_list():
+		var prop_name: String = str(prop.get("name", ""))
+		if not prop_name.begins_with("autoload/"):
+			continue
+		var singleton_name: String = prop_name.substr("autoload/".length())
+		var raw_path: String = str(ProjectSettings.get_setting(prop_name, ""))
+		var enabled: bool = raw_path.begins_with("*")
+		var clean_path: String = raw_path.substr(1) if enabled else raw_path
+		var script_exists: bool = FileAccess.file_exists(clean_path)
+		var loads_ok: bool = false
+		var class_name_value: String = ""
+		if script_exists and clean_path.ends_with(".gd"):
+			var script: GDScript = load(clean_path) as GDScript
+			loads_ok = script != null
+			if loads_ok:
+				class_name_value = str(script.get_global_name()) if script.has_method("get_global_name") else ""
+		autoloads.append({
+			"name": singleton_name,
+			"path": clean_path,
+			"raw_path": raw_path,
+			"enabled": enabled,
+			"script_exists": script_exists,
+			"loads_ok": loads_ok,
+			"class_name": class_name_value
+		})
+	return ResponseFactory.success(
+		{"autoloads": autoloads, "count": autoloads.size()},
+		"Autoloads (full) loaded."
+	)
+
+
+func _project_reload_autoload(params: Dictionary) -> Dictionary:
+	var singleton_name: String = str(params.get("name", ""))
+	if singleton_name.is_empty():
+		return ResponseFactory.error("INVALID_PARAMS", "name is required.", {}, [])
+	var key: String = "autoload/" + singleton_name
+	if not ProjectSettings.has_setting(key):
+		return ResponseFactory.error("AUTOLOAD_NOT_FOUND", "Autoload not found.", {"name": singleton_name}, [])
+	var raw_path: String = str(ProjectSettings.get_setting(key, ""))
+	ProjectSettings.set_setting(key, null)
+	ProjectSettings.set_setting(key, raw_path)
+	ProjectSettings.save()
+	return ResponseFactory.success({"name": singleton_name, "path": raw_path}, "Autoload reloaded.")
+
+
+func _project_reorder_autoloads(params: Dictionary) -> Dictionary:
+	var order: Array = params.get("order", [])
+	if order.is_empty():
+		return ResponseFactory.error("INVALID_PARAMS", "order array is required.", {}, [])
+	var current_paths: Dictionary = {}
+	for prop in ProjectSettings.get_property_list():
+		var prop_name: String = str(prop.get("name", ""))
+		if prop_name.begins_with("autoload/"):
+			var singleton_name: String = prop_name.substr("autoload/".length())
+			current_paths[singleton_name] = str(ProjectSettings.get_setting(prop_name, ""))
+	var missing: Array = []
+	for n in order:
+		if not current_paths.has(str(n)):
+			missing.append(str(n))
+	if not missing.is_empty():
+		return ResponseFactory.error("AUTOLOAD_NOT_FOUND", "Some autoloads in order do not exist.", {"missing": missing}, [])
+	# Remove all then re-add in given order
+	for n in current_paths.keys():
+		ProjectSettings.set_setting("autoload/" + str(n), null)
+	for n in order:
+		ProjectSettings.set_setting("autoload/" + str(n), current_paths[str(n)])
+	ProjectSettings.save()
+	return ResponseFactory.success({"order": order, "count": order.size()}, "Autoloads reordered.")
 
 
 func _get_godot_version() -> String:

@@ -31,6 +31,8 @@ import { registerWorkflowTools } from "./tools/workflowTools.js";
 import { registerDiffTools } from "./tools/diffTools.js";
 import { registerTransactionTools } from "./tools/transactionTools.js";
 import { registerConventionTools } from "./tools/conventionTools.js";
+import { registerScoreTools } from "./tools/scoreTools.js";
+import { registerAutoloadTools } from "./tools/autoloadTools.js";
 
 const config = loadConfig();
 
@@ -76,6 +78,8 @@ registerWorkflowTools(server, godot, config);
 registerDiffTools(server, godot, config);
 registerTransactionTools(server, godot, config);
 registerConventionTools(server, godot, config);
+registerScoreTools(server, godot, config);
+registerAutoloadTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

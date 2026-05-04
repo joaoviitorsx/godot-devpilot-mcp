@@ -4,6 +4,29 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.2.0] — 2026-05-04 — Content Pipeline
+
+### Added
+
+#### Content tools (`contentTools.ts`)
+Generates Resource subclass scripts (`class_name X extends Resource`) + sample `.tres` files + lookup-by-id autoload helpers.
+
+- `devpilot_create_item_database(sample_count)` — Item Resource (id/display_name/icon/stack_size/item_type/stats) + 5 samples (sword/potion/shield/key/gold_coin) + ItemDB autoload.
+- `devpilot_create_enemy_database(sample_count)` — EnemyData Resource + 3-5 sample enemies (slime/goblin/skeleton/wolf/boss) + EnemyDB autoload.
+- `devpilot_create_dialogue_database(sample_count)` — Dialogue Resource with `from_json` static helper + sample JSON dialogues.
+- `devpilot_create_quest_database(sample_count)` — Quest Resource (id/title/objectives/rewards) with `is_complete()` helper + samples + QuestDB autoload.
+- `devpilot_create_loot_table` — LootTable Resource with weighted `roll()` method.
+- `devpilot_create_spawn_table` — SpawnTable Resource with `pick(active_counts)` method enforcing `max_simultaneous` per entry.
+
+All databases use plain text `.tres` format + a generic `DB_HELPER` autoload template providing `get_by_id(id) -> Resource` and `all() -> Array`.
+
+### Stats
+- New tools: 6 (content pipeline)
+- Total tools: ~245
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [2.1.0] — 2026-05-04 — Genre Blueprints
 
 ### Added

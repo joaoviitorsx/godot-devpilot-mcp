@@ -4,6 +4,38 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.1.0] — 2026-05-04 — Genre Blueprints
+
+### Added
+
+#### Genre blueprints (`genreBlueprintTools.ts`)
+Each tool produces a fully wired opinionated game template (scene + multiple systems) — not just a controller.
+
+- `devpilot_create_platformer_blueprint(level_length, enemy_count, collectible_count)` — TileMap floor (N×10 cells), platformer player + camera, enemies with patrol, collectibles, scene saved.
+- `devpilot_create_top_down_rpg_blueprint(npc_count)` — 8-dir player + N NPCs in `interactable` group + DialogueBox (Panel/Speaker/Text).
+- `devpilot_create_survivor_like_blueprint(spawn_interval)` — player + AutoShooter (group-based targeting) + SpawnManager (radial spawn) + XPSystem (level-up signals).
+- `devpilot_create_puzzle_blueprint(grid_width, grid_height)` — Puzzle Node2D with tile-swap mechanic + score HUD.
+- `devpilot_create_visual_novel_blueprint(dialogue_data_path)` — Background + Character sprites + DialogueBox + sample `dialogue.json` with branching.
+- `devpilot_create_tower_defense_blueprint(starting_currency, tower_cost, enemies_per_wave)` — Path2D + TowerPlacement (mouse-click to place) + EnemyWaves (PathFollow2D-based) + currency HUD.
+
+Each returns `{scene_path, files_created[], systems_used[], steps_executed/failed, next_steps[]}`.
+
+### Reusable templates added
+- `AUTO_SHOOTER` — group-based nearest-enemy targeting + cooldown firing.
+- `SPAWN_MANAGER` — radial random spawn at fixed interval.
+- `XP_SYSTEM` — leveling with growth_factor + xp_changed/level_up signals.
+- `DIALOGUE_BOX` — line-by-line advance on `ui_accept`/`interact`.
+- `TILE_SWAP_PUZZLE` — 4-dir adjacency swap with score.
+- `TOWER_PLACEMENT` — currency-gated mouse placement.
+- `ENEMY_WAVES` — PathFollow2D-based enemy spawning per wave.
+
+### Stats
+- New tools: 6 (genre blueprints)
+- Total tools: ~239
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [2.0.0] — 2026-05-04 — Playable Prototype Generator (MAJOR RELEASE)
 
 > **Describe a game idea. DevPilot creates a playable Godot prototype with scenes, systems, UI, validation and tests.**

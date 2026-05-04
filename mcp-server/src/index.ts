@@ -42,6 +42,7 @@ import { registerGameSystemTools } from "./tools/gameSystemTools.js";
 import { registerMenuTools } from "./tools/menuTools.js";
 import { registerUiValidatorTools } from "./tools/uiValidatorTools.js";
 import { registerPrototypeTools } from "./tools/prototypeTools.js";
+import { registerGenreBlueprintTools } from "./tools/genreBlueprintTools.js";
 
 const config = loadConfig();
 
@@ -98,6 +99,7 @@ registerGameSystemTools(server, godot, config);
 registerMenuTools(server, godot, config);
 registerUiValidatorTools(server, godot, config);
 registerPrototypeTools(server, godot, config);
+registerGenreBlueprintTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

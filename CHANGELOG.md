@@ -4,6 +4,32 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.7.0] — 2026-05-04 — Markdown Eval Reports
+
+### Added
+
+#### Eval reports (`evalReportTools.ts`)
+- `godot_run_eval_case(case_path)` — execute a single eval case via internal RPC, validate response (`expected_ok` + `expected_response_contains`), write `evals/results/<id>.result.json`.
+- `godot_run_all_evals(cases_dir, report_path)` — batch-execute every `.eval.json` in cases dir; writes per-result JSON + combined `REPORT.md`.
+- `godot_export_eval_report(results_dir, output_path)` — read existing result files → generate fresh markdown report (no re-execution). Useful for CI dashboards.
+
+External-tool-name → internal-RPC-method mapping table for current MCP cases (extendable per case via `mcp_method` field).
+
+### Stats
+- New tools: 3 (eval runner + batch runner + report exporter)
+- Total tools: ~214
+- Build: clean, 294/294 tests passing
+
+### Roadmap delivered
+All 10 prioritized features from v1.3.0–v1.7.0 plan now shipped:
+- v1.3.0: Transaction + Diff Preview + Convention Detector
+- v1.4.0: Validation Score + Autoload Manager
+- v1.5.0: Input Recording/Replay + Pixel Screenshot Diff
+- v1.6.0: Behavior Test Replay + Safe Refactor v2
+- v1.7.0: Markdown Eval Reports
+
+---
+
 ## [1.6.0] — 2026-05-04 — Behavior Test Replay + Safe Refactor v2
 
 ### Added

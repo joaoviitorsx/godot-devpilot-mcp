@@ -37,6 +37,7 @@ import { registerRecordingTools } from "./tools/recordingTools.js";
 import { registerScreenshotDiffTools } from "./tools/screenshotDiffTools.js";
 import { registerBehaviorReplayTools } from "./tools/behaviorReplayTools.js";
 import { registerSafeRefactorV2Tools } from "./tools/safeRefactorV2Tools.js";
+import { registerEvalReportTools } from "./tools/evalReportTools.js";
 
 const config = loadConfig();
 
@@ -88,6 +89,7 @@ registerRecordingTools(server, godot, config);
 registerScreenshotDiffTools(server, godot, config);
 registerBehaviorReplayTools(server, godot, config);
 registerSafeRefactorV2Tools(server, godot, config);
+registerEvalReportTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

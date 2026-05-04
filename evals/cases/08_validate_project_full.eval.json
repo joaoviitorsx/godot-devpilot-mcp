@@ -1,0 +1,12 @@
+{
+  "id": "08_validate_project_full",
+  "description": "devpilot_validate_project should run all checks and return a health score",
+  "prompt": "Run a full validation of the project including conventions, input map, autoloads, and circular dependencies.",
+  "expected_tool": "devpilot_validate_project",
+  "params": {
+    "include_run_test": false
+  },
+  "expected_ok": true,
+  "expected_response_contains": ["passed", "health_score"],
+  "tags": ["workflow", "validation"]
+}

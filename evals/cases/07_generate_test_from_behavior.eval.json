@@ -1,0 +1,14 @@
+{
+  "id": "07_generate_test_from_behavior",
+  "description": "godot_generate_test_from_behavior should boot project, capture runtime state, generate assertions",
+  "prompt": "Run the project for 3 seconds and generate a regression test that captures the current runtime state.",
+  "expected_tool": "godot_generate_test_from_behavior",
+  "params": {
+    "test_name": "baseline_behavior",
+    "run_ms": 3000,
+    "mode": "regression"
+  },
+  "expected_ok": true,
+  "expected_response_contains": ["test_name", "assertions_generated"],
+  "tags": ["test", "behavior", "regression"]
+}

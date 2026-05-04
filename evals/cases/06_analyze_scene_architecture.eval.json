@@ -1,0 +1,9 @@
+{
+  "id": "06_analyze_scene_architecture",
+  "description": "godot_analyze_scene_architecture should return design smells and tree summary",
+  "prompt": "Analyze the architecture of the currently open scene and tell me about any design issues.",
+  "expected_tool": "godot_analyze_scene_architecture",
+  "expected_ok": true,
+  "expected_response_contains": ["design_smells", "node_count", "suggestions"],
+  "tags": ["doctor", "architecture"]
+}

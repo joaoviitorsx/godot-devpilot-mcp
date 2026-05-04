@@ -1435,3 +1435,55 @@ func create_scenario_rpc(params: Dictionary) -> Dictionary:
 		{"scenario": name_str, "path": "res://.godot_mcp/tests/" + name_str + ".json", "step_count": steps.size()},
 		"Test scenario persisted."
 	)
+
+
+# ── Infer: bind_key / bind_joypad ─────────────────────────────────────────────
+
+func bind_key(params: Dictionary) -> Dictionary:
+	var action_name: String = str(params.get("action", ""))
+	var key_str: String = str(params.get("key", ""))
+	var modifiers: Dictionary = params.get("modifiers", {})
+
+	if action_name.is_empty() or key_str.is_empty():
+		return ResponseFactory.error("INVALID_PARAMS", "action and key are required.", {}, [])
+
+	var keycode: Key = OS.find_keycode_from_string(key_str)
+	if keycode == KEY_NONE:
+		return ResponseFactory.error("INVALID_KEY", "Unknown key '%s'." % key_str, {}, ["Use key name like 'Space', 'A', 'F1'"])
+
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+
+	var ev := InputEventKey.new()
+	ev.keycode = keycode
+	ev.shift_pressed = bool(modifiers.get("shift", false))
+	ev.ctrl_pressed = bool(modifiers.get("ctrl", false))
+	ev.alt_pressed = bool(modifiers.get("alt", false))
+	InputMap.action_add_event(action_name, ev)
+
+	return ResponseFactory.success(
+		{"action": action_name, "key": key_str, "keycode": keycode},
+		"Key bound to action."
+	)
+
+
+func bind_joypad(params: Dictionary) -> Dictionary:
+	var action_name: String = str(params.get("action", ""))
+	var button_index: int = int(params.get("button_index", -1))
+	var device: int = int(params.get("device", -1))
+
+	if action_name.is_empty() or button_index < 0:
+		return ResponseFactory.error("INVALID_PARAMS", "action and button_index are required.", {}, [])
+
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button_index
+	ev.device = device
+	InputMap.action_add_event(action_name, ev)
+
+	return ResponseFactory.success(
+		{"action": action_name, "button_index": button_index, "device": device},
+		"Joypad button bound to action."
+	)

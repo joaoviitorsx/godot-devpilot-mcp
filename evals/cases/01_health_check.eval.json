@@ -1,0 +1,9 @@
+{
+  "id": "01_health_check",
+  "description": "Basic liveness check — health_check should return ok=true and server info",
+  "prompt": "Check if the Godot DevPilot MCP server is running and healthy.",
+  "expected_tool": "godot_health_check",
+  "expected_ok": true,
+  "expected_response_contains": ["ok", "server"],
+  "tags": ["core", "smoke"]
+}

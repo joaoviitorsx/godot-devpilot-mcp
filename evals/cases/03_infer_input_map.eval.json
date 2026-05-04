@@ -1,0 +1,9 @@
+{
+  "id": "03_infer_input_map",
+  "description": "Infer input actions from scripts — should detect Input.is_action_pressed calls",
+  "prompt": "Scan all GDScript files and find any input actions used in code that are not registered in InputMap.",
+  "expected_tool": "godot_infer_input_map_from_scripts",
+  "expected_ok": true,
+  "expected_response_contains": ["found_in_scripts", "missing_actions"],
+  "tags": ["infer", "input"]
+}

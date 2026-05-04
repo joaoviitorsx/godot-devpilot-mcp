@@ -25,6 +25,9 @@ import { registerPhase17Tools } from "./tools/phase17Tools.js";
 import { registerPhase18Tools } from "./tools/phase18Tools.js";
 import { registerPhase19Tools } from "./tools/phase19Tools.js";
 import { registerPhase20Tools } from "./tools/phase20Tools.js";
+import { registerDoctorTools } from "./tools/doctorTools.js";
+import { registerInferTools } from "./tools/inferTools.js";
+import { registerWorkflowTools } from "./tools/workflowTools.js";
 
 const config = loadConfig();
 
@@ -64,6 +67,9 @@ registerPhase17Tools(server, godot, config);
 registerPhase18Tools(server, godot, config);
 registerPhase19Tools(server, godot, config);
 registerPhase20Tools(server, godot, config);
+registerDoctorTools(server, godot, config);
+registerInferTools(server, godot, config);
+registerWorkflowTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

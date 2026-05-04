@@ -1,0 +1,14 @@
+{
+  "id": "04_build_feature_dry_run",
+  "description": "devpilot_build_feature with dry_run=true should return a plan without executing",
+  "prompt": "Create a PlayerController feature scaffold as a dry run — show me the plan without actually making changes.",
+  "expected_tool": "devpilot_build_feature",
+  "params": {
+    "feature_name": "PlayerController",
+    "scene_path": "res://scenes/player.tscn",
+    "dry_run": true
+  },
+  "expected_ok": true,
+  "expected_response_contains": ["plan", "dry_run"],
+  "tags": ["workflow", "dry_run"]
+}

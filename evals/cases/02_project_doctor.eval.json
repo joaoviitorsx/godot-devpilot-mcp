@@ -1,0 +1,9 @@
+{
+  "id": "02_project_doctor",
+  "description": "Project doctor should return a health score and list of issues",
+  "prompt": "Run a full diagnostic of the current Godot project and tell me what issues exist.",
+  "expected_tool": "godot_project_doctor",
+  "expected_ok": true,
+  "expected_response_contains": ["health_score", "issues"],
+  "tags": ["doctor", "diagnostics"]
+}

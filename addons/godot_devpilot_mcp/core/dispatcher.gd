@@ -297,6 +297,11 @@ func dispatch(request: Variant) -> Dictionary:
 		# Phase 20 — Test scenario (used by generate_test_from_behavior)
 		"test.create_scenario":
 			return Protocol.success_envelope(request_id, _extended_tools.create_scenario_rpc(params))
+		# Infer — bind input events at runtime
+		"infer.bind_key":
+			return Protocol.success_envelope(request_id, _extended_tools.bind_key(params))
+		"infer.bind_joypad":
+			return Protocol.success_envelope(request_id, _extended_tools.bind_joypad(params))
 		_:
 			return Protocol.error_envelope(
 				request_id,

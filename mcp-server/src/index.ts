@@ -39,6 +39,8 @@ import { registerBehaviorReplayTools } from "./tools/behaviorReplayTools.js";
 import { registerSafeRefactorV2Tools } from "./tools/safeRefactorV2Tools.js";
 import { registerEvalReportTools } from "./tools/evalReportTools.js";
 import { registerGameSystemTools } from "./tools/gameSystemTools.js";
+import { registerMenuTools } from "./tools/menuTools.js";
+import { registerUiValidatorTools } from "./tools/uiValidatorTools.js";
 
 const config = loadConfig();
 
@@ -92,6 +94,8 @@ registerBehaviorReplayTools(server, godot, config);
 registerSafeRefactorV2Tools(server, godot, config);
 registerEvalReportTools(server, godot, config);
 registerGameSystemTools(server, godot, config);
+registerMenuTools(server, godot, config);
+registerUiValidatorTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

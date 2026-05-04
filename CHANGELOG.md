@@ -4,6 +4,37 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.9.0] — 2026-05-04 — UI, Menus & Settings + Menu Validator
+
+### Added
+
+#### Menu tools (`menuTools.ts`)
+- `devpilot_create_main_menu(play_scene_path, settings_scene_path)` — VBox + Play/Settings/Quit; first button auto-grabs focus.
+- `devpilot_create_settings_menu` — hub menu with Audio/Video/Keybindings/Back buttons.
+- `devpilot_create_keybinding_menu` — auto-iterates non-`ui_*` InputMap actions; press-to-rebind via `_input` handler.
+- `devpilot_create_audio_settings` — Master/Music/SFX HSliders bound to AudioServer buses (linear↔dB conversion).
+- `devpilot_create_video_settings` — resolution OptionButton + fullscreen + vsync CheckBoxes; calls `DisplayServer.window_set_*`.
+- `devpilot_create_game_over_screen(main_scene_path, menu_scene_path)` — Retry/MainMenu buttons; PROCESS_MODE_ALWAYS for paused-tree usage.
+- `devpilot_create_level_select_screen(levels_dir)` — auto-discovers .tscn files via DirAccess; first button auto-focused.
+
+(`devpilot_create_pause_menu` already exists in v1.8.0; not redefined here.)
+
+#### Menu validator (`uiValidatorTools.ts`)
+- `devpilot_validate_menu(menu_path, require_theme, require_back_button)` — checks:
+  - **Focus chain**: warns when interactive controls have no `focus_neighbor_*` set.
+  - **Signal connections**: scans scene.audit for `pressed` connections on Buttons.
+  - **Anchors**: errors when Control has zero size + zero anchors (likely invisible).
+  - **Theme**: optional check for assigned theme.
+  - **Navigation**: warns when no back/close/cancel button found.
+- Returns categorized issues (`focus_issues`, `signal_issues`, `anchor_issues`, `theme_issues`, `navigation_issues`) with severity (`error`/`warning`).
+
+### Stats
+- New tools: 8 (7 menus + 1 validator)
+- Total tools: ~230
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.8.0] — 2026-05-04 — Game System Generators
 
 ### Added

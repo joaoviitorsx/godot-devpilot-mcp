@@ -4,6 +4,27 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.6.0] — 2026-05-04 — Behavior Test Replay + Safe Refactor v2
+
+### Added
+
+#### Behavior replay (`behaviorReplayTools.ts`)
+- `godot_replay_behavior_test(test_name, hold_ms, speed_factor, capture_after_ms)` — full pipeline: load scenario JSON → run project → optional input recording replay → wait → run assertions (node_exists / property_equals / fps_in_range) → stop project → return per-assertion + per-phase report.
+
+#### Safe Refactor v2 (`safeRefactorV2Tools.ts`)
+- `godot_safe_refactor_symbol_v2(old_symbol, new_symbol, contexts, file_extensions, dry_run)` — context-aware GDScript refactor.
+- Classifies each occurrence as: identifier, type_hint (`: Symbol` / `-> Symbol`), function_name (after `func`), class_name (after `class_name`), string, or comment.
+- String/comment masking via per-character scanner that respects escape sequences.
+- Default contexts: `[identifier, type_hint, function_name, class_name]` — strings and comments preserved by default.
+- Returns `by_context` breakdown + per-occurrence detail (truncated at 200).
+
+### Stats
+- New tools: 2 (1 behavior replay + 1 safe refactor v2)
+- Total tools: ~211
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.5.0] — 2026-05-04 — Input Recording/Replay + Pixel Screenshot Diff
 
 ### Added

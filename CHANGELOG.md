@@ -4,6 +4,44 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.4.0] — 2026-05-04 — Game Feel + QA
+
+### Added
+
+#### Game feel (`gameFeelTools.ts`)
+- `devpilot_tune_player_movement(preset, mode)` — patches @export speed/friction/acceleration via `script.patch` (permanent) or `runtime.set_property` (live). Presets: floaty/snappy/heavy/responsive.
+- `devpilot_tune_camera_feel(preset, smoothing_speed, drag_horizontal, drag_vertical)` — Camera2D presets: cinematic/twitchy/anchored. Editor or runtime mode.
+- `devpilot_tune_jump_arc(jump_height_px, time_to_apex_s)` — projectile motion solver: `gravity = 2h/t²`, `jump_velocity = -2h/t`. Optional script patch.
+- `devpilot_tune_combat_balance(player/enemy stats, target_TTK, target_survival)` — DPS/TTK/survival heuristics with concrete adjustment suggestions.
+
+#### QA audits (`qaAuditTools.ts`)
+- `devpilot_performance_audit(duration_s, sample_count, fps_threshold, draw_calls_threshold, nodes_threshold)` — runs project, samples FPS + process_stats N times, flags issues, writes markdown report to `.godot_mcp/reports/performance_audit.md`.
+- `devpilot_accessibility_audit(min_font_size, min_contrast_ratio)` — server-side scene tree walk:
+  - **Contrast ratio** (WCAG 2.1 AA): relative luminance via sRGB→linear; checks `theme_override_colors/font_color` vs `background`.
+  - **Font size**: flags overrides below `min_font_size` (default 14px).
+  - **Focus chain**: warns when interactive controls have no `focus_neighbor_*` set.
+  - Markdown report to `.godot_mcp/reports/accessibility_audit.md`.
+
+### Stats
+- New tools: 6 (4 game feel + 2 QA audits)
+- Total tools: ~257
+- Build: clean, 294/294 tests passing
+
+### Roadmap delivered
+v1.8.0 → v2.4.0 complete (43 new tools across 7 versions):
+
+| Version | Theme | Tools |
+|---|---|---|
+| v1.8.0 | Game System Generators | 8 |
+| v1.9.0 | UI Menus + Validator | 8 |
+| **v2.0.0** | **Playable Prototype Generator** | **3 (major)** |
+| v2.1.0 | Genre Blueprints | 6 |
+| v2.2.0 | Content Pipeline | 6 |
+| v2.3.0 | Level Design Assistant | 6 |
+| v2.4.0 | Game Feel + QA | 6 |
+
+---
+
 ## [2.3.0] — 2026-05-04 — Level Design Assistant
 
 ### Added

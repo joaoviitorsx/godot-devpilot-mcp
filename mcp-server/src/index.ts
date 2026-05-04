@@ -45,6 +45,8 @@ import { registerPrototypeTools } from "./tools/prototypeTools.js";
 import { registerGenreBlueprintTools } from "./tools/genreBlueprintTools.js";
 import { registerContentTools } from "./tools/contentTools.js";
 import { registerLevelDesignTools } from "./tools/levelDesignTools.js";
+import { registerGameFeelTools } from "./tools/gameFeelTools.js";
+import { registerQaAuditTools } from "./tools/qaAuditTools.js";
 
 const config = loadConfig();
 
@@ -104,6 +106,8 @@ registerPrototypeTools(server, godot, config);
 registerGenreBlueprintTools(server, godot, config);
 registerContentTools(server, godot, config);
 registerLevelDesignTools(server, godot, config);
+registerGameFeelTools(server, godot, config);
+registerQaAuditTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

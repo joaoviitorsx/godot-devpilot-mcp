@@ -33,6 +33,8 @@ import { registerTransactionTools } from "./tools/transactionTools.js";
 import { registerConventionTools } from "./tools/conventionTools.js";
 import { registerScoreTools } from "./tools/scoreTools.js";
 import { registerAutoloadTools } from "./tools/autoloadTools.js";
+import { registerRecordingTools } from "./tools/recordingTools.js";
+import { registerScreenshotDiffTools } from "./tools/screenshotDiffTools.js";
 
 const config = loadConfig();
 
@@ -80,6 +82,8 @@ registerTransactionTools(server, godot, config);
 registerConventionTools(server, godot, config);
 registerScoreTools(server, godot, config);
 registerAutoloadTools(server, godot, config);
+registerRecordingTools(server, godot, config);
+registerScreenshotDiffTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

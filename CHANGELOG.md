@@ -4,6 +4,31 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.5.0] — 2026-05-04 — Input Recording/Replay + Pixel Screenshot Diff
+
+### Added
+
+#### Recording tools (`recordingTools.ts`)
+- `godot_save_input_recording(name, events, description, overwrite)` — persists input event sequence as JSON in `.godot_mcp/recordings/`.
+- `godot_list_input_recordings` — lists all recordings with metadata.
+- `godot_replay_input_recording(name, speed_factor, stop_on_error)` — reads recording → calls input RPC per event → respects per-event delay_ms scaled by speed_factor.
+
+Event types: press_key, release_key, tap_key, press_action, release_action, mouse_click, mouse_move, mouse_drag.
+
+#### Screenshot pixel diff (`screenshotDiffTools.ts`) — closes ISSUE-009
+- `godot_compare_screenshots_pixel(path_a, path_b, threshold, output_diff_path)` — RGB Euclidean distance per pixel. Returns similarity_pct + diff_pixels. Optional diff highlight PNG.
+- `godot_assert_screenshot_matches_pixel(path_a, path_b, min_similarity_pct, threshold)` — assertion form for tests.
+
+### Dependencies
+- Added `pngjs` ^7.0.0 + `@types/pngjs` ^6.0.5
+
+### Stats
+- New tools: 5 (3 recording + 2 pixel diff)
+- Total tools: ~209
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.4.0] — 2026-05-04 — Validation Score + Autoload Manager Full
 
 ### Added

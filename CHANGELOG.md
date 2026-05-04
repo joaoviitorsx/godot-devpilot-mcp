@@ -4,6 +4,35 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.0.0] — 2026-05-04 — Playable Prototype Generator (MAJOR RELEASE)
+
+> **Describe a game idea. DevPilot creates a playable Godot prototype with scenes, systems, UI, validation and tests.**
+
+### Added
+
+#### Prototype tools (`prototypeTools.ts`)
+- `devpilot_design_game_from_prompt(prompt, override_plan?, persist?)` — heuristic keyword parser converts natural-language description into structured `GameDesignPlan` `{genre, title, entities[], systems[], menus[], scenes[]}`. Persists to `.godot_mcp/memory/game_design.{md,json}`. Genres: platformer/topdown/rpg/survivor/puzzle/visual_novel/tower_defense. LLM client can pass `override_plan` to skip parsing.
+- `devpilot_create_playable_prototype(plan?, validate?, dry_run?)` — orchestrates full prototype: creates main scene, player (style by genre), enemies (count parsed from prompt), collectibles, scripts, attaches all, saves scene, optionally runs project for 3s and checks errors. Falls back to persisted plan if none provided.
+- `devpilot_apply_game_design_plan(plan, validate?)` — idempotent re-application of a plan (skip-on-existing).
+
+### Genre-aware controller selection
+Player controller automatically chosen by genre:
+- `platformer` → gravity + jump_velocity + horizontal axis
+- `topdown / rpg / survivor` → 8-directional Vector2 movement
+- 4-directional / sidescroller fall back to topdown logic
+
+### Persistence
+Game design plans stored as both:
+- `.godot_mcp/memory/game_design.md` — human-readable
+- `.godot_mcp/memory/game_design.json` — re-applicable structured
+
+### Stats
+- New tools: 3 (the headline release tools)
+- Total tools: ~233
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.9.0] — 2026-05-04 — UI, Menus & Settings + Menu Validator
 
 ### Added

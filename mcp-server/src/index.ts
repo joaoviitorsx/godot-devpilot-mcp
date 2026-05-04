@@ -41,6 +41,7 @@ import { registerEvalReportTools } from "./tools/evalReportTools.js";
 import { registerGameSystemTools } from "./tools/gameSystemTools.js";
 import { registerMenuTools } from "./tools/menuTools.js";
 import { registerUiValidatorTools } from "./tools/uiValidatorTools.js";
+import { registerPrototypeTools } from "./tools/prototypeTools.js";
 
 const config = loadConfig();
 
@@ -96,6 +97,7 @@ registerEvalReportTools(server, godot, config);
 registerGameSystemTools(server, godot, config);
 registerMenuTools(server, godot, config);
 registerUiValidatorTools(server, godot, config);
+registerPrototypeTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

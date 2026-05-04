@@ -4,6 +4,31 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.3.0] — 2026-05-04 — Transaction + Diff Preview + Convention Detector
+
+### Added
+
+#### Transaction tools (`transactionTools.ts`)
+- `godot_begin_transaction(label, files)` — snapshot listed files to `.godot_mcp/tx/<tx_id>/`. Returns `tx_id`.
+- `godot_commit_transaction(tx_id, cleanup_snapshots)` — mark transaction committed; optional snapshot cleanup.
+- `godot_rollback_transaction(tx_id)` — restore all snapshotted files; remove files that didn't exist before.
+- `godot_list_transactions(filter_status)` — list active/committed/rolled_back transactions.
+
+#### Diff tools (`diffTools.ts`, pure server-side)
+- `godot_diff_file(path, proposed_content)` — LCS-based line diff with unified diff output. Returns `{added, removed, unchanged, unified_diff}`.
+- `godot_diff_scene(scene_path, proposed_tscn)` — node-level scene tree diff with `nodes_added/removed/changed` + per-node property changes.
+
+#### Convention tools (`conventionTools.ts`)
+- `godot_detect_conventions` — scans `.gd/.tscn` and infers naming (functions/vars/consts/classes/signals), indent style, script coverage %, max node depth. Optional persist to `.godot_mcp/memory/conventions.md`.
+- `godot_enforce_conventions(rules, dry_run)` — checks violations against rules; writes markdown report when `dry_run=false`.
+
+### Stats
+- New tools: 8 (4 transaction + 2 diff + 2 convention)
+- Total tools: ~198 godot_*/devpilot_*
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.2.0] — 2026-05-04 — Doctor + Infer + Workflow + Evals
 
 ### Added

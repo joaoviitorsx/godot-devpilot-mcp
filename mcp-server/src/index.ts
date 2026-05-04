@@ -44,6 +44,7 @@ import { registerUiValidatorTools } from "./tools/uiValidatorTools.js";
 import { registerPrototypeTools } from "./tools/prototypeTools.js";
 import { registerGenreBlueprintTools } from "./tools/genreBlueprintTools.js";
 import { registerContentTools } from "./tools/contentTools.js";
+import { registerLevelDesignTools } from "./tools/levelDesignTools.js";
 
 const config = loadConfig();
 
@@ -102,6 +103,7 @@ registerUiValidatorTools(server, godot, config);
 registerPrototypeTools(server, godot, config);
 registerGenreBlueprintTools(server, godot, config);
 registerContentTools(server, godot, config);
+registerLevelDesignTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

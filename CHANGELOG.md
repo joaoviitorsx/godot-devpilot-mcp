@@ -4,6 +4,30 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.3.0] — 2026-05-04 — Level Design Assistant
+
+### Added
+
+#### Level design tools (`levelDesignTools.ts`)
+- `devpilot_generate_tilemap_level(node_path, width, height, pattern, density, seed)` — fills TileMap with `solid | noise | borders` pattern. Capped at 50000 cells.
+- `devpilot_generate_platformer_level(length, ground_y, gap_ratio, max_platform_height, seed)` — alternating floor + gaps + raised platforms via `tilemap.fill_rect`.
+- `devpilot_generate_dungeon_layout(width, height, depth, min_room_size, seed)` — BSP partitioned dungeon: rooms + L-corridors connecting consecutive rooms.
+- `devpilot_place_spawns_and_collectibles(scene_paths, density, max_instances)` — reads `tilemap.get_used_cells`, finds floor tiles (cells with no neighbor above), randomly distributes scene instances via `scene.add_instance`.
+- `devpilot_validate_level_playability(start, end, bounds)` — A* (Manhattan heuristic) over walkable cells. Returns reachability + path_length + dead_ends + walkable_cells. Capped at 10000 cells.
+- `devpilot_balance_level_difficulty(enemy_count, gap_count, level_length, target_difficulty)` — heuristic score = `(enemies×5 + gaps×3) / (length/10)`. Returns suggestions to add/remove enemies to reach target range.
+
+### Algorithms
+- Mulberry32 seeded RNG for deterministic generation.
+- BSP partitioning with horizontal/vertical split selection.
+- A* with Manhattan distance heuristic.
+
+### Stats
+- New tools: 6 (level design)
+- Total tools: ~251
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [2.2.0] — 2026-05-04 — Content Pipeline
 
 ### Added

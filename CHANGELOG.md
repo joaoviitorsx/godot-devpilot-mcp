@@ -4,17 +4,79 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
-## [Unreleased] — Phase 16 release prep
+## [1.2.0] — 2026-05-04 — Doctor + Infer + Workflow + Evals
 
 ### Added
-- `CHANGELOG.md` consolidating phase deltas.
-- `examples/demo_2d_project/` and `examples/demo_3d_project/` minimal scaffolds.
-- README rewritten with full phase status table, tool catalog, security model, project structure.
 
-### Pending for v1.0.0
-- Manual validation with Godot 4.6.1: ISSUE-018 (Phase 12), ISSUE-020 (Phase 13).
-- Cross-platform install validation (Linux verified; macOS/Windows pending).
-- Tag `v1.0.0` after manual validation closes all blocking issues.
+#### Doctor tools (`doctorTools.ts`)
+- `godot_project_doctor` — 8-pass diagnostic (errors, unused resources, circular deps, input map drift, autoload drift, export presets, main scene, conventions). Health score 0–100.
+- `godot_run_validation_pipeline` — 10-step pipeline: project info → baseline errors → optional scene open → run → sleep → runtime tree → FPS → post errors → stop → optional regression file.
+- `godot_analyze_scene_architecture` — scene tree walk detecting design smells (deep nesting, default names, many same-type children, inconsistent script coverage). Returns suggestions.
+
+#### Infer tools (`inferTools.ts`)
+- `godot_infer_input_map_from_scripts` — server-side GDScript scan for `Input.is_action_*()` calls; diffs against registered InputMap; optional `auto_add`.
+- `godot_infer_autoloads_from_scripts` — extracts PascalCase singleton usages from `.gd` files; compares against autoloads; 35 built-in classes filtered.
+- `godot_bind_key` — `InputEventKey` + `InputMap.action_add_event()` via GDScript. `dry_run` supported.
+- `godot_bind_joypad_button` — `InputEventJoypadButton` + `InputMap.action_add_event()` via GDScript.
+- `godot_validate_input_map` — cross-checks script-found actions vs registered actions with event count.
+- `godot_validate_autoloads` — verifies each registered autoload script is readable.
+- `godot_safe_refactor_symbol` — find/replace across `.gd/.tscn/.tres`; optional file rename; post-refactor circular dep check.
+- `godot_detect_missing_singletons` — lists PascalCase singletons used in scripts but not in autoloads.
+
+#### Workflow tools (`workflowTools.ts`)
+- `devpilot_build_feature` — scene + script + attach + save + memory note. `dry_run` returns plan.
+- `devpilot_fix_bug` — logs → patch → validate → run → check errors → stop.
+- `devpilot_create_gameplay_loop` — player + enemy + level scene with instances + camera. `platformer/topdown/rpg`.
+- `devpilot_refactor_scene_safely` — validate → audit → apply rename/reparent/remove/set_property ops → save → re-validate.
+- `devpilot_validate_project` — runs doctor + conventions + optional 3s run test. Returns health score.
+- `devpilot_prepare_export_release` — conventions → list presets → export → memory release note.
+
+#### GDScript (`extended_tools.gd`)
+- `bind_key()` — `InputEventKey.new()` + `OS.find_keycode_from_string()`.
+- `bind_joypad()` — `InputEventJoypadButton.new()` + configurable device.
+
+#### Dispatcher (`dispatcher.gd`)
+- Routes: `infer.bind_key`, `infer.bind_joypad`.
+
+#### Evals benchmark (`evals/`)
+- 8 eval cases: health check, project doctor, infer input map, build feature dry run, safe refactor, scene architecture, behavior test, full validation.
+- `evals/runner.js` — minimal Node.js runner outputting result stubs.
+
+### Stats
+- Tools registered: ~190 godot_* / devpilot_* MCP tools
+- Build: clean (`tsc -p tsconfig.json`)
+- Tests: 294/294 passing
+
+---
+
+## [1.1.0] — 2026-05-04 — Phases 17–20
+
+### Added
+
+#### Phase 17 — Editor scripting + TileMap + node signals + scene instancing
+- `godot_execute_editor_script`, `godot_execute_game_script`
+- `godot_connect_signal`, `godot_disconnect_signal`
+- `godot_add_scene_instance`
+- `godot_tilemap_set_cell`, `godot_tilemap_fill_rect`, `godot_tilemap_get_cell`, `godot_tilemap_clear`, `godot_tilemap_get_info`, `godot_tilemap_get_used_cells`
+
+#### Phase 18 — AnimationTree + Audio buses + Theme + Shader params
+- AnimationTree: `get_tree_structure`, `add_state`, `remove_state`, `add_transition`, `remove_transition`, `set_blend_node`, `set_tree_param`
+- Audio: `get_bus_layout`, `add_bus`, `set_bus`, `add_bus_effect`, `get_info`
+- Theme: `create`, `set_color`, `set_constant`, `set_font_size`, `set_stylebox`, `get_info`
+- Shader: `set_param`, `get_params`
+
+#### Phase 19 — Export presets + Resource CRUD + Batch ops + UID tools
+- Export: `list_presets`, `export`, `get_info`
+- Resource: `read`, `edit`, `create`
+- Batch: `find_by_type`, `set_property`, `cross_scene_set`, `find_unused`, `detect_circular`
+- UID: `uid_to_project_path`, `project_path_to_uid`
+
+#### Phase 20 — Behavior-driven test generation
+- `godot_generate_test_from_behavior` — run → capture tree + FPS (5 samples) + property snapshots → stop → build assertions → persist scenario.
+
+---
+
+## [1.0.0] — 2026-05-04 — Phase 16 release prep
 
 ---
 

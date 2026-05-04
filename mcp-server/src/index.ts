@@ -21,6 +21,10 @@ import { registerToolkit2dTools } from "./tools/toolkit2dTools.js";
 import { registerToolkit3dTools } from "./tools/toolkit3dTools.js";
 import { registerToolkit13Tools } from "./tools/toolkit13Tools.js";
 import { registerAgenticTools } from "./tools/agenticTools.js";
+import { registerPhase17Tools } from "./tools/phase17Tools.js";
+import { registerPhase18Tools } from "./tools/phase18Tools.js";
+import { registerPhase19Tools } from "./tools/phase19Tools.js";
+import { registerPhase20Tools } from "./tools/phase20Tools.js";
 
 const config = loadConfig();
 
@@ -56,6 +60,10 @@ registerToolkit3dTools(server, godot, config);
 registerToolkit13Tools(server, godot, config);
 registerTestTools(server, godot, config);
 registerAgenticTools(server, godot, config);
+registerPhase17Tools(server, godot, config);
+registerPhase18Tools(server, godot, config);
+registerPhase19Tools(server, godot, config);
+registerPhase20Tools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

@@ -11,6 +11,7 @@ const DebugTools = preload("res://addons/godot_devpilot_mcp/tools/debug_tools.gd
 const ScreenshotTools = preload("res://addons/godot_devpilot_mcp/tools/screenshot_tools.gd")
 const InputTools = preload("res://addons/godot_devpilot_mcp/tools/input_tools.gd")
 const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tools.gd")
+const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 
 const PLUGIN_VERSION := "0.1.0"
 const PROTOCOL_VERSION := "1.0.0"
@@ -24,6 +25,7 @@ var _debug_tools: DebugTools
 var _screenshot_tools: ScreenshotTools
 var _input_tools: InputTools
 var _runtime_tools: RuntimeTools
+var _extended_tools: ExtendedTools
 
 
 func setup(p_editor_interface, p_undo_redo = null) -> void:
@@ -52,6 +54,9 @@ func setup(p_editor_interface, p_undo_redo = null) -> void:
 
 	_runtime_tools = RuntimeTools.new()
 	_runtime_tools.setup(editor_interface, _input_tools)
+
+	_extended_tools = ExtendedTools.new()
+	_extended_tools.setup(editor_interface, _undo_service)
 
 
 func dispatch(request: Variant) -> Dictionary:
@@ -189,6 +194,109 @@ func dispatch(request: Variant) -> Dictionary:
 			return Protocol.success_envelope(request_id, _runtime_tools.find_ui_element(params))
 		"runtime.click_ui_by_text":
 			return Protocol.success_envelope(request_id, _runtime_tools.click_ui_by_text(params))
+		# Phase 17 — execute script
+		"script.execute_editor":
+			return Protocol.success_envelope(request_id, _extended_tools.execute_editor_script(params))
+		"script.execute_game":
+			return Protocol.success_envelope(request_id, _extended_tools.execute_game_script(params))
+		# Phase 17 — signal wiring
+		"node.connect_signal":
+			return Protocol.success_envelope(request_id, _extended_tools.connect_signal(params))
+		"node.disconnect_signal":
+			return Protocol.success_envelope(request_id, _extended_tools.disconnect_signal(params))
+		# Phase 17 — scene instance
+		"scene.add_instance":
+			return Protocol.success_envelope(request_id, _extended_tools.add_scene_instance(params))
+		# Phase 17 — TileMap
+		"tilemap.set_cell":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_set_cell(params))
+		"tilemap.fill_rect":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_fill_rect(params))
+		"tilemap.get_cell":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_get_cell(params))
+		"tilemap.clear":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_clear(params))
+		"tilemap.get_info":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_get_info(params))
+		"tilemap.get_used_cells":
+			return Protocol.success_envelope(request_id, _extended_tools.tilemap_get_used_cells(params))
+		# Phase 18 — AnimationTree
+		"anim.get_tree_structure":
+			return Protocol.success_envelope(request_id, _extended_tools.get_animation_tree_structure(params))
+		"anim.add_state":
+			return Protocol.success_envelope(request_id, _extended_tools.add_state_machine_state(params))
+		"anim.remove_state":
+			return Protocol.success_envelope(request_id, _extended_tools.remove_state_machine_state(params))
+		"anim.add_transition":
+			return Protocol.success_envelope(request_id, _extended_tools.add_state_machine_transition(params))
+		"anim.remove_transition":
+			return Protocol.success_envelope(request_id, _extended_tools.remove_state_machine_transition(params))
+		"anim.set_blend_node":
+			return Protocol.success_envelope(request_id, _extended_tools.set_blend_tree_node(params))
+		"anim.set_tree_param":
+			return Protocol.success_envelope(request_id, _extended_tools.set_tree_parameter(params))
+		# Phase 18 — Audio bus
+		"audio.get_bus_layout":
+			return Protocol.success_envelope(request_id, _extended_tools.get_audio_bus_layout(params))
+		"audio.add_bus":
+			return Protocol.success_envelope(request_id, _extended_tools.add_audio_bus(params))
+		"audio.set_bus":
+			return Protocol.success_envelope(request_id, _extended_tools.set_audio_bus(params))
+		"audio.add_bus_effect":
+			return Protocol.success_envelope(request_id, _extended_tools.add_audio_bus_effect(params))
+		"audio.get_info":
+			return Protocol.success_envelope(request_id, _extended_tools.get_audio_info(params))
+		# Phase 18 — Theme
+		"theme.create":
+			return Protocol.success_envelope(request_id, _extended_tools.create_theme(params))
+		"theme.set_color":
+			return Protocol.success_envelope(request_id, _extended_tools.set_theme_color(params))
+		"theme.set_constant":
+			return Protocol.success_envelope(request_id, _extended_tools.set_theme_constant(params))
+		"theme.set_font_size":
+			return Protocol.success_envelope(request_id, _extended_tools.set_theme_font_size(params))
+		"theme.set_stylebox":
+			return Protocol.success_envelope(request_id, _extended_tools.set_theme_stylebox(params))
+		"theme.get_info":
+			return Protocol.success_envelope(request_id, _extended_tools.get_theme_info(params))
+		# Phase 18 — Shader params
+		"shader.set_param":
+			return Protocol.success_envelope(request_id, _extended_tools.set_shader_param(params))
+		"shader.get_params":
+			return Protocol.success_envelope(request_id, _extended_tools.get_shader_params(params))
+		# Phase 19 — Export
+		"export.list_presets":
+			return Protocol.success_envelope(request_id, _extended_tools.list_export_presets(params))
+		"export.export":
+			return Protocol.success_envelope(request_id, _extended_tools.export_project(params))
+		"export.get_info":
+			return Protocol.success_envelope(request_id, _extended_tools.get_export_info(params))
+		# Phase 19 — Resource
+		"resource.read":
+			return Protocol.success_envelope(request_id, _extended_tools.read_resource(params))
+		"resource.edit":
+			return Protocol.success_envelope(request_id, _extended_tools.edit_resource(params))
+		"resource.create":
+			return Protocol.success_envelope(request_id, _extended_tools.create_resource(params))
+		# Phase 19 — Batch
+		"batch.find_by_type":
+			return Protocol.success_envelope(request_id, _extended_tools.find_nodes_by_type(params))
+		"batch.set_property":
+			return Protocol.success_envelope(request_id, _extended_tools.batch_set_property(params))
+		"batch.cross_scene_set":
+			return Protocol.success_envelope(request_id, _extended_tools.cross_scene_set_property(params))
+		"batch.find_unused":
+			return Protocol.success_envelope(request_id, _extended_tools.find_unused_resources(params))
+		"batch.detect_circular":
+			return Protocol.success_envelope(request_id, _extended_tools.detect_circular_dependencies(params))
+		# Phase 19 — UID
+		"project.uid_to_path":
+			return Protocol.success_envelope(request_id, _extended_tools.uid_to_project_path(params))
+		"project.path_to_uid":
+			return Protocol.success_envelope(request_id, _extended_tools.project_path_to_uid(params))
+		# Phase 20 — Test scenario (used by generate_test_from_behavior)
+		"test.create_scenario":
+			return Protocol.success_envelope(request_id, _extended_tools.create_scenario_rpc(params))
 		_:
 			return Protocol.error_envelope(
 				request_id,

@@ -4,6 +4,29 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [1.8.0] — 2026-05-04 — Game System Generators
+
+### Added
+
+#### Game system tools (`gameSystemTools.ts`)
+- `devpilot_create_player_controller_2d(style, ...)` — full 2D player tree (CharacterBody2D + Sprite2D + CollisionShape2D + Camera2D + script). Style: `platformer | topdown | sidescroller`.
+- `devpilot_create_health_system(max_health, invincibility_time)` — Node + script with `health_changed/damaged/died` signals + i-frames.
+- `devpilot_create_damage_system(kind: dealer|receiver|both)` — DamageDealer (Area2D) + DamageReceiver (Node). Group-based ("damageable") integration.
+- `devpilot_create_interaction_system(interact_action)` — Area2D detector for "interactable" group + signal on input.
+- `devpilot_create_inventory_system(max_slots)` — InventoryItem Resource subclass + Inventory Node with add/remove/has helpers.
+- `devpilot_create_save_system(autoload_name)` — JSON save/load singleton; auto-registers as autoload.
+- `devpilot_create_hud(player_health_path)` — CanvasLayer + Control + Label + ProgressBar wired via NodePath.
+- `devpilot_create_pause_menu(pause_action)` — CanvasLayer + dim ColorRect + Resume/Quit buttons with tree-pause toggle.
+
+All tools support `dry_run`, return structured response with paths/scripts created. Reuse `addChildNode` + `setProp` + `attachScript` + `writeScriptFile` helpers.
+
+### Stats
+- New tools: 8 (all `devpilot_*` namespace)
+- Total tools: ~222
+- Build: clean, 294/294 tests passing
+
+---
+
 ## [1.7.0] — 2026-05-04 — Markdown Eval Reports
 
 ### Added

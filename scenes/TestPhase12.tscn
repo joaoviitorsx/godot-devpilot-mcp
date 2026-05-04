@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://bfhl8tf7d0u3"]
+
+[ext_resource type="Script" uid="uid://cu8pug2c7cqww" path="res://scripts/Player3D.gd" id="1_rjh3g"]
+
+[node name="TestPhase12" type="Node3D" unique_id=672212115]
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=985242293]
+script = ExtResource("1_rjh3g")
+
+[node name="Mesh" type="MeshInstance3D" parent="Player" unique_id=804949018]
+
+[node name="Collision" type="CollisionShape3D" parent="Player" unique_id=218728069]
+
+[node name="CameraPivot" type="Node3D" parent="Player" unique_id=207990430]
+
+[node name="Camera3D" type="Camera3D" parent="Player/CameraPivot" unique_id=1667816312]
+current = true
+
+[node name="Camera3D_Extra" type="Camera3D" parent="Player" unique_id=1485691869]
+current = true
+fov = 90.0
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=246577805]
+transform = Transform3D(0.70710677, 0.5416752, -0.45451948, 0, 0.64278764, 0.76604444, 0.70710677, -0.5416752, 0.45451948, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1150240560]
+
+[node name="Sphere" type="MeshInstance3D" parent="." unique_id=92277066]

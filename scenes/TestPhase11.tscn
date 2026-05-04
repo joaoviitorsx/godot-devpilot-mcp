@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://chp1lndj4opgp"]
+
+[ext_resource type="Script" uid="uid://dtr3ixfk7vhrq" path="res://scripts/HealthSystem.gd" id="1_edbxn"]
+[ext_resource type="Script" uid="uid://dvydyfmhmsn3b" path="res://scripts/Enemy.gd" id="2_xnilx"]
+[ext_resource type="Script" uid="uid://c76ymufj2c8sq" path="res://scripts/Collectible.gd" id="3_1f5v2"]
+
+[node name="TestPhase11" type="Node2D" unique_id=973590181]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=683213027]
+script = ExtResource("1_edbxn")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player" unique_id=1901681680]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=379739419]
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=824291285]
+zoom = Vector2(1.5, 1.5)
+
+[node name="Enemy" type="CharacterBody2D" parent="." unique_id=894913262]
+script = ExtResource("2_xnilx")
+
+[node name="Sprite2D" type="Sprite2D" parent="Enemy" unique_id=278078601]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy" unique_id=633757356]
+
+[node name="Collectible" type="Area2D" parent="." unique_id=704277792]
+script = ExtResource("3_1f5v2")
+
+[node name="Sprite2D" type="Sprite2D" parent="Collectible" unique_id=2139711471]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible" unique_id=904142050]

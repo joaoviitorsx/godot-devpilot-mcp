@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://butxihdjitkv2"]
+
+[ext_resource type="Script" path="res://scripts/IntegratedTest.gd" id="1_jgte0"]
+
+[node name="TestIntegrated" type="Node2D" unique_id=232628109]
+script = ExtResource("1_jgte0")
+
+[node name="TestSprite" type="Sprite2D" parent="." unique_id=1859834502]

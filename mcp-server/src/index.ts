@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { loadConfig, validateProjectRoot } from "./config/config.js";
+import { GodotClient } from "./godot/client.js";
+import { registerCoreTools } from "./tools/coreTools.js";
+import { registerDebugTools } from "./tools/debugTools.js";
+import { registerFileTools } from "./tools/fileTools.js";
+import { registerInputTools } from "./tools/inputTools.js";
+import { registerIntelligenceTools } from "./tools/intelligenceTools.js";
+import { registerMemoryTools } from "./tools/memoryTools.js";
+import { registerNodeTools } from "./tools/nodeTools.js";
+import { registerProjectTools } from "./tools/projectTools.js";
+import { registerSceneTools } from "./tools/sceneTools.js";
+import { registerRuntimeTools } from "./tools/runtimeTools.js";
+import { registerScreenshotTools } from "./tools/screenshotTools.js";
+import { registerScriptTools } from "./tools/scriptTools.js";
+import { registerTestTools } from "./tools/testTools.js";
+import { registerToolkit2dTools } from "./tools/toolkit2dTools.js";
+import { registerToolkit3dTools } from "./tools/toolkit3dTools.js";
+import { registerToolkit13Tools } from "./tools/toolkit13Tools.js";
+import { registerAgenticTools } from "./tools/agenticTools.js";
+
+const config = loadConfig();
+
+const rootCheck = validateProjectRoot(config.projectRoot);
+if (!rootCheck.valid) {
+  console.error(`[Godot DevPilot MCP] FATAL: invalid project root '${rootCheck.resolvedPath}': ${rootCheck.reason}`);
+  console.error(`[Godot DevPilot MCP] Set GODOT_MCP_PROJECT_ROOT to the absolute path of a directory containing project.godot.`);
+  process.exit(1);
+}
+console.error(`[Godot DevPilot MCP] project root: ${rootCheck.resolvedPath}`);
+
+const godot = new GodotClient(config.godot);
+
+const server = new McpServer({
+  name: config.server.name,
+  version: config.server.version
+});
+
+registerCoreTools(server, godot, config);
+registerProjectTools(server, godot, config);
+registerFileTools(server, config);
+registerSceneTools(server, godot, config);
+registerNodeTools(server, godot, config);
+registerScriptTools(server, godot, config);
+registerDebugTools(server, godot, config);
+registerScreenshotTools(server, godot, config);
+registerInputTools(server, godot, config);
+registerRuntimeTools(server, godot, config);
+registerIntelligenceTools(server, config);
+registerMemoryTools(server, config);
+registerToolkit2dTools(server, godot, config);
+registerToolkit3dTools(server, godot, config);
+registerToolkit13Tools(server, godot, config);
+registerTestTools(server, godot, config);
+registerAgenticTools(server, godot, config);
+
+void godot.connect().then((initialConnection) => {
+  if (!initialConnection.ok) {
+    console.error(`[Godot DevPilot MCP] ${initialConnection.error.code}: ${initialConnection.error.message}`);
+  }
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+
+process.on("SIGINT", () => {
+  void godot.disconnect().finally(() => process.exit(0));
+});
+
+process.on("SIGTERM", () => {
+  void godot.disconnect().finally(() => process.exit(0));
+});

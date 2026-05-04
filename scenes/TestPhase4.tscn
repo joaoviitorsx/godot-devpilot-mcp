@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://dp4puc8wfl0i7"]
+
+[node name="TestRoot" type="Node2D" unique_id=622916659]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=127210297 groups=["players"]]
+position = Vector2(100, 200)
+
+[node name="PlayerSprite" type="Sprite2D" parent="Player" unique_id=151366061]
+
+[node name="PlayerSprite2" type="Sprite2D" parent="." unique_id=2089195914]
+position = Vector2(100, 200)

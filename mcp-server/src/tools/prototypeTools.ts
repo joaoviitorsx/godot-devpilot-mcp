@@ -34,7 +34,7 @@ type EntityType = "player" | "enemy" | "boss" | "npc" | "collectible";
 type SystemType = "health" | "damage" | "interaction" | "inventory" | "save";
 type MenuType = "main" | "pause" | "settings" | "audio" | "video" | "keybinding" | "game_over" | "level_select";
 
-type GameDesignPlan = {
+export type GameDesignPlan = {
   genre: Genre;
   title: string;
   entities: Array<{ type: EntityType; count?: number; controller_style?: string }>;
@@ -95,7 +95,7 @@ function matchesAny(text: string, words: string[]): boolean {
   return words.some((w) => text.includes(w));
 }
 
-function parsePromptToPlan(prompt: string): GameDesignPlan {
+export function parsePromptToPlan(prompt: string): GameDesignPlan {
   const lower = prompt.toLowerCase();
   let genre: Genre = "topdown";
   for (const [g, kws] of Object.entries(GENRE_KEYWORDS) as Array<[Genre, string[]]>) {
@@ -164,7 +164,7 @@ function planToMarkdown(plan: GameDesignPlan): string {
 
 type StepResult = { step: string; ok: boolean; data?: unknown; error?: unknown };
 
-async function applyPlan(godot: GodotClient, config: ServerConfig, plan: GameDesignPlan, opts: { skipExisting: boolean; runValidation: boolean }): Promise<{ steps: StepResult[]; files_created: string[]; scenes: string[]; failed: number }> {
+export async function applyPlan(godot: GodotClient, config: ServerConfig, plan: GameDesignPlan, opts: { skipExisting: boolean; runValidation: boolean }): Promise<{ steps: StepResult[]; files_created: string[]; scenes: string[]; failed: number }> {
   const steps: StepResult[] = [];
   const files_created: string[] = [];
   const scenes: string[] = [];
@@ -250,7 +250,7 @@ async function applyPlan(godot: GodotClient, config: ServerConfig, plan: GameDes
   return { steps, files_created, scenes, failed };
 }
 
-async function persistDesignPlan(projectRoot: string, plan: GameDesignPlan): Promise<string> {
+export async function persistDesignPlan(projectRoot: string, plan: GameDesignPlan): Promise<string> {
   const memDir = path.join(projectRoot, ".godot_mcp", "memory");
   await mkdir(memDir, { recursive: true });
   const filePath = path.join(memDir, "game_design.md");
@@ -259,7 +259,7 @@ async function persistDesignPlan(projectRoot: string, plan: GameDesignPlan): Pro
   return filePath;
 }
 
-async function loadPersistedPlan(projectRoot: string): Promise<GameDesignPlan | null> {
+export async function loadPersistedPlan(projectRoot: string): Promise<GameDesignPlan | null> {
   try {
     const content = await readFile(path.join(projectRoot, ".godot_mcp", "memory", "game_design.json"), "utf8");
     return JSON.parse(content) as GameDesignPlan;

@@ -47,6 +47,7 @@ import { registerContentTools } from "./tools/contentTools.js";
 import { registerLevelDesignTools } from "./tools/levelDesignTools.js";
 import { registerGameFeelTools } from "./tools/gameFeelTools.js";
 import { registerQaAuditTools } from "./tools/qaAuditTools.js";
+import { registerPromptWorkflowTools } from "./tools/promptWorkflowTools.js";
 
 const config = loadConfig();
 
@@ -108,6 +109,7 @@ registerContentTools(server, godot, config);
 registerLevelDesignTools(server, godot, config);
 registerGameFeelTools(server, godot, config);
 registerQaAuditTools(server, godot, config);
+registerPromptWorkflowTools(server, godot, config);
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

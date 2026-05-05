@@ -20,7 +20,7 @@ function toMcpResult(response: ToolResponse): CallToolResult {
   };
 }
 
-async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
+export async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
   if (!godot.getStatus().connected) {
     const connection = await godot.connect();
     if (!connection.ok) return connection;
@@ -32,10 +32,10 @@ function ctx(toolName: string, config: ServerConfig) {
   return { toolName, readOnly: config.security.readOnly, projectRoot: config.projectRoot };
 }
 
-type PlanStep = { name: string; method: string; params: Record<string, unknown>; required?: boolean };
-type StepResult = { name: string; method: string; ok: boolean; result: unknown };
+export type PlanStep = { name: string; method: string; params: Record<string, unknown>; required?: boolean };
+export type StepResult = { name: string; method: string; ok: boolean; result: unknown };
 
-async function executePlan(steps: PlanStep[], godot: GodotClient, stopOnError: boolean): Promise<{ results: StepResult[]; halted: boolean }> {
+export async function executePlan(steps: PlanStep[], godot: GodotClient, stopOnError: boolean): Promise<{ results: StepResult[]; halted: boolean }> {
   const results: StepResult[] = [];
   for (const step of steps) {
     const r = await callAfterConnect(godot, step.method, step.params);

@@ -26,11 +26,13 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 13 | Specialized toolkits (Physics/Animation/Audio/Particles/Shader/Navigation) | ✅ |
 | 14 | Test scenarios + assertions + stress test | ✅ |
 | 15 | Agentic orchestrators (build_feature, refactor, validation loop) | ✅ |
-| 16 | Release prep (CHANGELOG, demos) | 🟡 |
+| 16 | Release prep (CHANGELOG, demos) | ✅ |
+| 2.x | Prompt-first workflows, genre blueprints, blueprint library, snapshots, CI | ✅ |
 
+**Version:** 2.6.0 — see `CHANGELOG.md`.  
 **Build:** clean (`npm run build`).  
-**Tests:** 294 / 294 passing across 29 files.  
-**Tools registered:** ~145 `godot_*` MCP tools.
+**Tests:** 417 / 417 passing across 39 files.  
+**Tools registered:** 377 MCP tools (232 `godot_*` + 145 `devpilot_*`).
 
 ---
 
@@ -89,6 +91,14 @@ Add to your client config (Claude Desktop / Claude Code / etc.):
 }
 ```
 
+### 4. Use in your own Godot project
+
+Copy `addons/godot_devpilot_mcp/` into your project's `addons/` folder, enable the plugin there, and point `GODOT_MCP_PROJECT_ROOT` at your project. The MCP server can live anywhere — only `args` needs its absolute path.
+
+> This repository's own `project.godot` (the plugin dev sandbox) is saved with Godot 4.6.
+
+First prompt to try: *"Run `devpilot_init_wizard` and then `devpilot_help`."* Prompt templates: `docs/cookbook.md`, `docs/AI_USAGE_GUIDE.md`.
+
 > **Security:** `GODOT_MCP_PROJECT_ROOT` must point to a directory containing `project.godot`. The server validates this on startup and refuses to launch otherwise (prevents accidental exposure of `$HOME` files via `res://` shortcuts).
 
 ---
@@ -110,6 +120,13 @@ Phase 12  Toolkit 3D        godot_create_character_body_3d, godot_setup_lighting
 Phase 13  Specialized       godot_setup_physics_body, godot_create_animation_player, godot_create_shader, …
 Phase 14  Testing           godot_assert_property_equals, godot_run_test_scenario, godot_stress_test_scene
 Phase 15  Agentic           godot_build_feature, godot_refactor_safely, godot_run_validation_loop, …
+
+v2.x      Prompt-first      devpilot_route_prompt, devpilot_execute_prompt_workflow, devpilot_refine_plan, …
+v2.x      Onboarding        devpilot_init_wizard, devpilot_help, devpilot_tutorial, devpilot_game, …
+v2.x      Blueprints        devpilot_list_blueprints, devpilot_blueprint_* (2D, 3D, RPG, A/V, genres, C#), …
+v2.x      Composition       devpilot_create_project_archetype, devpilot_compose_main_scene, devpilot_define_scene, …
+v2.x      Lifecycle         devpilot_snapshot_project, devpilot_rollback_to_snapshot, devpilot_setup_ci, …
+v2.x      Quality           devpilot_verify_spec, devpilot_auto_fix_parse_errors, devpilot_generate_tests, …
 ```
 
 Full reference: `docs/api_reference.md`.  
@@ -135,9 +152,12 @@ See `docs/security.md`.
 ```text
 examples/demo_2d_project/   Minimal 2D platformer scaffold
 examples/demo_3d_project/   Minimal 3D character + camera scaffold
+examples/shooter_2d_complete/   Full 2D shooter walkthrough
+examples/rpg_topdown_complete/  Full top-down RPG walkthrough
+examples/fps_3d_complete/       Full 3D FPS walkthrough
 ```
 
-Each example has its own `project.godot` and a README with a suggested tool sequence.
+Each example has a README with a suggested tool sequence.
 
 ---
 
@@ -169,8 +189,8 @@ mcp-server/
 │                        fileTools, debugTools, screenshotTools, inputTools,
 │                        runtimeTools, intelligenceTools, memoryTools,
 │                        toolkit2dTools, toolkit3dTools, toolkit13Tools,
-│                        testTools, agenticTools
-└── tests/               29 vitest files
+│                        testTools, agenticTools, blueprintLibrary*, …
+└── tests/               39 vitest files
 
 addons/godot_devpilot_mcp/
 ├── plugin.cfg, plugin.gd
@@ -180,7 +200,7 @@ addons/godot_devpilot_mcp/
                          screenshot_tools, input_tools, runtime_tools
 
 docs/                    31+ markdown documents (architecture, security, validations, roadmap)
-examples/                demo_2d_project, demo_3d_project (Phase 16)
+examples/                demo_2d/3d scaffolds + shooter_2d / rpg_topdown / fps_3d complete
 .godot_mcp/              Runtime artefacts (backups/, logs/, screenshots/,
                          intel/, memory/, tests/, reports/)
 ```

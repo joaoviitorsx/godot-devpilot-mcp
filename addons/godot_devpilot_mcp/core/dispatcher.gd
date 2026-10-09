@@ -13,7 +13,7 @@ const InputTools = preload("res://addons/godot_devpilot_mcp/tools/input_tools.gd
 const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tools.gd")
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 
-const PLUGIN_VERSION := "0.1.0"
+const PLUGIN_VERSION := "2.6.0"
 const PROTOCOL_VERSION := "1.0.0"
 
 var editor_interface
@@ -650,12 +650,16 @@ func _project_add_autoload(params: Dictionary) -> Dictionary:
 			["Use godot_remove_autoload first, or choose a different name."]
 		)
 
-	ProjectSettings.set_setting(key, singleton_path)
+	# Autoloads must be prefixed with "*" to be enabled in Godot 4.x.
+	# Without the prefix the singleton is registered but disabled, leading
+	# to "Identifier not declared in current scope" parse errors.
+	var stored_path: String = singleton_path if singleton_path.begins_with("*") else "*" + singleton_path
+	ProjectSettings.set_setting(key, stored_path)
 	ProjectSettings.save()
 
 	return ResponseFactory.success(
-		{"name": singleton_name, "path": singleton_path},
-		"Autoload registered."
+		{"name": singleton_name, "path": stored_path},
+		"Autoload registered (enabled)."
 	)
 
 

@@ -4,6 +4,73 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.6.0] — 2026-10-09 — Blueprint Library + Project Lifecycle
+
+### Added
+
+#### Onboarding & discovery
+- `devpilot_init_wizard`, `devpilot_help`, `devpilot_tutorial`, `devpilot_game` (launcher), `devpilot_list_tools_by_tier`, `devpilot_detect_language_support`.
+- `devpilot_explain_project`, `devpilot_recommend_blueprints`.
+
+#### Blueprint library (`blueprintLibrary*Tools.ts`)
+- 2D: `boss_arena`, `chest`, `dungeon_room`, `pickup`, `projectile_system`, `shop_item`, `twin_stick`.
+- 3D: `player_3d`, `enemy_3d`, `projectile_3d`, `dungeon_room_3d`.
+- RPG: `dialogue_system`, `inventory_grid`, `inventory_drag_drop`, `loot_table`, `quest_system`.
+- A/V: `animation_state_machine`, `audio_bus`.
+- Genres: `physics_puzzle`, `rts_unit` + extra genre blueprints.
+- Advanced: `behavior_tree`, `navigation`, `scene_transitions`, `settings_manager`, `shader_library`, `vfx_library`.
+- Systems: `achievements`, `save_migration`, `save_schema`, `localization`, `procedural_dungeon`.
+- C# / native: `devpilot_setup_csharp_project`, `devpilot_blueprint_csharp_player`, `devpilot_blueprint_gdextension_scaffold`.
+- Registry: `devpilot_list_blueprints`, `devpilot_describe_blueprint`, `devpilot_validate_blueprint_compat`, `devpilot_check_blueprint_dependencies`, custom blueprints (`register` / `list` / `apply`), `devpilot_check_versions`.
+
+#### Archetypes, presets & composition
+- `devpilot_create_project_archetype`, `devpilot_list_archetypes`, `devpilot_apply_preset`, `devpilot_list_presets`.
+- `devpilot_compose_main_scene`, `devpilot_apply_refinement`, `devpilot_auto_wire_signals`, `devpilot_signal_graph`.
+- Declarative scenes: `devpilot_define_scene` (scene serializer), `devpilot_define_tilemap`, `devpilot_author_dialogue_graph`.
+- `devpilot_refine_plan` — refine a persisted GameDesignPlan with a delta prompt; prompt parser detects genre, quantities and negations.
+- Prompt router recognizes genre names and popular references (zelda-like, metroidvania, vampire survivors, …) as CREATE intent.
+
+#### Project lifecycle
+- Manifest: `devpilot_manifest_get`, `devpilot_manifest_update`.
+- Snapshots: `devpilot_snapshot_project`, `devpilot_list_snapshots`, `devpilot_rollback_to_snapshot`, `devpilot_diff_snapshot`, `devpilot_prune_snapshots`.
+- Workspaces: `devpilot_workspace_register`, `devpilot_workspace_list`.
+- Export & CI: `devpilot_setup_export_preset`, `devpilot_setup_asset_pack`, `devpilot_setup_ci`.
+
+#### Quality
+- `devpilot_verify_spec` — declarative acceptance criteria against the project.
+- `devpilot_auto_fix_parse_errors` + built-in GDScript linter (`utils/gdscriptLint.ts`).
+- `devpilot_generate_tests`, `devpilot_generate_tests_v2`, `devpilot_run_headless`, `devpilot_performance_budget`, `devpilot_stream_runtime_metrics`, `devpilot_telemetry`, `devpilot_reload_editor`.
+
+#### Plugin
+- `runtime_capture.gd` — `EditorDebuggerPlugin` forwarding runtime errors/output of the running scene into the active run log.
+
+#### Docs & examples
+- `docs/cookbook.md` (prompt → call sequences), `docs/asset_library_publish.md`.
+- `examples/shooter_2d_complete`, `examples/rpg_topdown_complete`, `examples/fps_3d_complete`.
+
+### Changed
+- Version unified to `2.6.0` across `package.json`, `plugin.cfg`, server config and plugin dispatcher (previously `0.1.0`).
+
+### Stats
+- Total tools: 377 (145 `devpilot_*` + 232 `godot_*`)
+- Build: clean, 417/417 tests passing across 39 files
+
+---
+
+## [2.5.0] — 2026-05-04 — Prompt-First Workflow Layer
+
+### Added
+- Prompt Workflow Layer: prompt → plan → execute → validate → Markdown + JSON report.
+- `devpilot_route_prompt`, `devpilot_generate_prompt_plan`, `devpilot_execute_prompt_workflow`, `devpilot_generate_workflow_report`.
+- 6 modes (CREATE, CONTINUE, ADD_FEATURE, FIX_BUG, POLISH, VALIDATE) with PT + EN keyword routing. `dry_run` returns a preview without mutation.
+- Reports persisted to `.devpilot/reports/{timestamp,latest}.{md,json}`.
+- Prompt guides under `docs/prompts/`.
+
+### Stats
+- Build: clean, 307/307 tests passing
+
+---
+
 ## [2.4.0] — 2026-05-04 — Game Feel + QA
 
 ### Added

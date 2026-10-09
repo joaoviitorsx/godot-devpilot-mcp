@@ -1,6 +1,6 @@
 {
   "name": "godot-devpilot-mcp-server",
-  "version": "0.1.0",
+  "version": "2.6.0",
   "description": "MCP server for Godot DevPilot MCP.",
   "type": "module",
   "bin": {

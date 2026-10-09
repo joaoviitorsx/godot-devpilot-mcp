@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://cr7cd8q77t2su"]
+
+[ext_resource type="Script" uid="uid://3cfbammct0sv" path="res://scripts/Player.gd" id="1_sugp2"]
+[ext_resource type="Script" uid="uid://dvydyfmhmsn3b" path="res://scripts/Enemy.gd" id="2_jyhfs"]
+[ext_resource type="Texture2D" uid="uid://c6hg63koam8l1" path="res://icon.svg" id="2_tbgi4"]
+[ext_resource type="Script" uid="uid://c76ymufj2c8sq" path="res://scripts/Collectible.gd" id="3_tbgi4"]
+[ext_resource type="Texture2D" uid="uid://cyjkypjuoce1p" path="res://assets/Weapon/sword.png" id="4_tbgi4"]
+
+[node name="main" type="Node2D" unique_id=1285174579]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=647386968]
+script = ExtResource("1_sugp2")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player" unique_id=1119920268]
+texture = ExtResource("2_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=408248880]
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=22701118]
+
+[node name="Enemy1" type="CharacterBody2D" parent="." unique_id=337439429]
+position = Vector2(200, 0)
+script = ExtResource("2_jyhfs")
+
+[node name="Sprite2D" type="Sprite2D" parent="Enemy1" unique_id=1611225410]
+texture = ExtResource("4_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy1" unique_id=1708388820]
+
+[node name="Enemy2" type="CharacterBody2D" parent="." unique_id=632358519]
+position = Vector2(400, 0)
+script = ExtResource("2_jyhfs")
+
+[node name="Sprite2D" type="Sprite2D" parent="Enemy2" unique_id=519721766]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy2" unique_id=1042064356]
+
+[node name="Enemy3" type="CharacterBody2D" parent="." unique_id=260799858]
+position = Vector2(600, 0)
+script = ExtResource("2_jyhfs")
+
+[node name="Sprite2D" type="Sprite2D" parent="Enemy3" unique_id=979269155]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy3" unique_id=541577783]
+
+[node name="Collectible1" type="Area2D" parent="." unique_id=798298714]
+position = Vector2(100, 100)
+script = ExtResource("3_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible1" unique_id=1909553411]
+
+[node name="Collectible2" type="Area2D" parent="." unique_id=673555701]
+position = Vector2(200, 100)
+script = ExtResource("3_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible2" unique_id=1429318029]
+
+[node name="Collectible3" type="Area2D" parent="." unique_id=1442453233]
+position = Vector2(300, 100)
+script = ExtResource("3_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible3" unique_id=1952504742]
+
+[node name="Collectible4" type="Area2D" parent="." unique_id=731377502]
+position = Vector2(400, 100)
+script = ExtResource("3_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible4" unique_id=1670248174]
+
+[node name="Collectible5" type="Area2D" parent="." unique_id=1998709456]
+position = Vector2(500, 100)
+script = ExtResource("3_tbgi4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Collectible5" unique_id=345103132]

@@ -52,6 +52,24 @@ func _append_run_event(log_path: String, event_type: String, data: Dictionary) -
 		file.close()
 
 
+# Public hook for the runtime debugger plugin to forward debugger messages.
+func append_runtime_event(message: String, data: Array, session_id: int) -> void:
+	if _current_run_log_path.is_empty():
+		return
+	var event_type := "runtime"
+	if message.begins_with("error"):
+		event_type = "error"
+	elif message.begins_with("output"):
+		event_type = "output"
+	elif message.begins_with("session"):
+		event_type = "session"
+	_append_run_event(_current_run_log_path, event_type, {
+		"message": message,
+		"session_id": session_id,
+		"payload": data,
+	})
+
+
 func _new_run_log_path() -> String:
 	var date_key := _get_date_key()
 	var time_key := _get_time_key()

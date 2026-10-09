@@ -1,0 +1,12 @@
+; DevPilot example: rpg_topdown_complete
+config_version=5
+
+[application]
+
+config/name="RPG Top-down Complete (DevPilot example)"
+config/features=PackedStringArray("4.6", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720

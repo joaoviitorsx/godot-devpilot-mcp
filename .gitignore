@@ -5,3 +5,7 @@ dist/
 *.gd.uid
 npm-debug.log*
 *.tmp
+
+# Local session artifacts
+.devpilot/
+.claude/settings.local.json

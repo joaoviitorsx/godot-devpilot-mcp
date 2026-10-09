@@ -11,6 +11,7 @@ import { createDryRunResponse } from "../safety/dryRun.js";
 import { createSafetyError } from "../safety/errors.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { autoFixGDScript } from "../utils/gdscriptLint.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -42,7 +43,7 @@ async function writeScriptFile(projectRoot: string, resPath: string, content: st
     return { written: false, reason: "Script exists. Pass overwrite=true.", absPath: resolved.absolutePath };
   }
   await mkdir(path.dirname(resolved.absolutePath), { recursive: true });
-  await writeFile(resolved.absolutePath, content, "utf8");
+  await writeFile(resolved.absolutePath, autoFixGDScript(content), "utf8");
   return { written: true, absPath: resolved.absolutePath };
 }
 

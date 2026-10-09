@@ -18,6 +18,12 @@ func setup(editor_interface, undo_redo = null) -> void:
 	dispatcher.setup(editor_interface, undo_redo)
 
 
+func get_debug_tools():
+	if dispatcher and "_debug_tools" in dispatcher:
+		return dispatcher._debug_tools
+	return null
+
+
 func start(p_port: int = 6505, p_host: String = "127.0.0.1") -> Dictionary:
 	if running:
 		return ResponseFactory.success({ "host": host, "port": port }, "RPC server is already running.")

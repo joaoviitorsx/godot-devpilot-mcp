@@ -71,11 +71,13 @@ const THIRD_PERSON_CONTROLLER = `extends CharacterBody3D
 @export var jump_velocity: float = 4.5
 @export var mouse_sensitivity: float = 0.002
 
-@onready var _camera_pivot: Node3D = $CameraPivot if has_node("CameraPivot") else null
+var _camera_pivot: Node3D = null
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
 func _ready() -> void:
+	if has_node("CameraPivot"):
+		_camera_pivot = get_node("CameraPivot")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _unhandled_input(event: InputEvent) -> void:

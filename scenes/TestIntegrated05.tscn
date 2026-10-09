@@ -1,8 +1,31 @@
 [gd_scene format=3 uid="uid://butxihdjitkv2"]
 
-[ext_resource type="Script" path="res://scripts/IntegratedTest.gd" id="1_jgte0"]
+[ext_resource type="Script" uid="uid://81ljo3hq0ins" path="res://scripts/IntegratedTest.gd" id="1_jgte0"]
+[ext_resource type="Script" uid="uid://3cfbammct0sv" path="res://scripts/Player.gd" id="2_5ern0"]
+[ext_resource type="Texture2D" uid="uid://c6hg63koam8l1" path="res://icon.svg" id="3_rtvvp"]
+[ext_resource type="Texture2D" uid="uid://c56mbab3i67oq" path="res://assets/Enemie/Mouse.png" id="4_ekrhi"]
 
 [node name="TestIntegrated" type="Node2D" unique_id=232628109]
 script = ExtResource("1_jgte0")
 
 [node name="TestSprite" type="Sprite2D" parent="." unique_id=1859834502]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=331686606]
+script = ExtResource("2_5ern0")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player" unique_id=1789138738]
+texture = ExtResource("3_rtvvp")
+region_enabled = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=651257337]
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1172324699]
+
+[node name="Sprite2D2" type="Sprite2D" parent="Player" unique_id=1538906680]
+texture = ExtResource("4_ekrhi")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player" unique_id=1246124181]
+
+[node name="Camera2D2" type="Camera2D" parent="Player" unique_id=1242734332]
+
+[node name="Player2" type="CharacterBody2D" parent="." unique_id=706186295]

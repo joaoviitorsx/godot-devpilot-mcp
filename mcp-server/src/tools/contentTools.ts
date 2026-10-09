@@ -9,6 +9,7 @@ import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
+import { autoFixGDScript } from "../utils/gdscriptLint.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
@@ -30,7 +31,8 @@ function ctx(toolName: string, config: ServerConfig) {
 async function writeFileSafe(projectRoot: string, resPath: string, content: string): Promise<void> {
   const resolved = resolveProjectPath(resPath, projectRoot);
   await mkdir(path.dirname(resolved.absolutePath), { recursive: true });
-  await writeFile(resolved.absolutePath, content, "utf8");
+  const final = resolved.resPath.endsWith(".gd") ? autoFixGDScript(content) : content;
+  await writeFile(resolved.absolutePath, final, "utf8");
 }
 
 const dryRun = (toolName: string, plan: string[], files: string[]) =>

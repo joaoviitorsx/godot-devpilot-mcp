@@ -21,6 +21,12 @@ const MODE_RULES: ModeRule[] = [
       "protótipo", "prototipo", "prototype", "from scratch",
       "create a game", "build a game", "make a game", "start a new game",
       "novo projeto", "novo prototipo", "novo protótipo",
+      // Genre keywords (CREATE intent inferred from naming a genre).
+      "platformer", "top-down", "topdown", "top down", "tower defense",
+      "survivor-like", "auto-shooter", "visual novel", "puzzle game",
+      // Genre aliases (popular references → CREATE).
+      "zelda-like", "zelda like", "mario-like", "metroidvania",
+      "vampire survivors", "souls-like", "doki doki", "kingdom rush",
     ],
   },
   {

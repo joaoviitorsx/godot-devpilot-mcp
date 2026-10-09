@@ -281,7 +281,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
     "Bind a keyboard key to an existing InputMap action.",
     {
       action_name: z.string().describe("Existing InputMap action name."),
-      key: z.string().describe("Key name: KEY_SPACE, KEY_W, KEY_UP, KEY_ENTER, etc. (Godot KeyList constant name)."),
+      key: z.string().describe("Key name without KEY_ prefix: 'W', 'A', 'Space', 'F1', 'Up', 'Enter', etc."),
       modifiers: z.object({
         shift: z.boolean().optional(),
         ctrl: z.boolean().optional(),
@@ -298,7 +298,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
             affectedFiles: []
           });
         }
-        return callAfterConnect(godot, "infer.bind_key", { action_name, key, modifiers: modifiers ?? {} });
+        return callAfterConnect(godot, "infer.bind_key", { action: action_name, key, modifiers: modifiers ?? {} });
       })
     )
   );

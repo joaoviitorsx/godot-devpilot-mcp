@@ -10,6 +10,7 @@ import { createSuccessResponse, createErrorResponse, type ToolResponse } from ".
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { autoFixGDScript } from "../utils/gdscriptLint.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -30,7 +31,7 @@ function ctx(toolName: string, config: ServerConfig) {
 async function writeGd(projectRoot: string, resPath: string, content: string): Promise<void> {
   const resolved = resolveProjectPath(resPath, projectRoot);
   await mkdir(path.dirname(resolved.absolutePath), { recursive: true });
-  await writeFile(resolved.absolutePath, content, "utf8");
+  await writeFile(resolved.absolutePath, autoFixGDScript(content), "utf8");
 }
 
 type StepResult = { step: string; ok: boolean; error?: unknown };

@@ -12,6 +12,7 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 - Game-focused MCP resource `godot://project/context`, `devpilot_game_context` tool, and prompts for features, playtesting, and tile-based levels.
 - Optional GUT CLI test runner with bounded output and a documented AI game-development workflow.
 - One-command `install.sh` / `install.ps1` bootstraps and a packable `godopilot` CLI that uses the current game directory, installs a stable project-local runtime, and adds small Claude/Codex project guidance.
+- `devpilot_create_3d_starter` generates a runnable FPS/TPS arena, controller and assigned 3D resources in one call, with dry-run preview, conflict protection and safe initial main-scene setup.
 
 ### Fixed
 - Project path checks, authenticated editor bridge, snapshot rollback safety, tool modes, evaluation runner, and workflow calls that targeted unavailable Godot methods.

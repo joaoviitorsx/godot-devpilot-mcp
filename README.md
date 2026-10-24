@@ -24,6 +24,7 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 11 | Toolkits 2D (player, enemy, hud, parallax, …) | ✅ |
 | 12 | Toolkits 3D (camera, character, lighting, raycast, …) | ✅ |
 | 12+ | Auditoria de cenas 3D (colisão, mesh, navegação, ambiente, câmera) e prompt de fatia jogável | ✅ |
+| 12+ | Starter FPS/TPS jogável com cena, controle e recursos 3D atribuídos | ✅ |
 | 13 | Specialized toolkits (Physics/Animation/Audio/Particles/Shader/Navigation) | ✅ |
 | 14 | Test scenarios + assertions + stress test | ✅ |
 | 15 | Agentic orchestrators (build_feature, refactor, validation loop) | ✅ |
@@ -78,6 +79,8 @@ Product naming proposal: [GodoPilot](docs/branding.md).
 
 Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) (optional, Godot 4.6+).
 
+To start a 3D game, ask the AI to call `devpilot_create_3d_starter` with `mode="fps"` or `mode="tps"` (available in `full` and `agentic`). It creates a playable arena and controller in one call. If your project already has a main scene, it keeps it and you can play the generated scene with F6. Use `dry_run=true` to preview the files. See the [3D workflow](docs/ai_game_development_roadmap.md#trilha-específica-para-jogos-3d).
+
 First prompt to try: *"Call `devpilot_game_context`, tell me the main scene and the next playable feature, then use `devpilot_feature_loop` to implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md) and `docs/cookbook.md`.
 
 ---
@@ -96,6 +99,7 @@ Phase 9   Intelligence      godot_project_summary, godot_build_dependency_graph,
 Phase 10  Memory            godot_update_project_memory, godot_create_decision_record, godot_search_memory
 Phase 11  Toolkit 2D        godot_create_player_2d, godot_setup_camera_2d, godot_create_inventory_ui, …
 Phase 12  Toolkit 3D        godot_create_character_body_3d, godot_setup_lighting, godot_create_raycast_3d, …
+3D start  Playable scene    devpilot_create_3d_starter (FPS/TPS)
 Phase 13  Specialized       godot_setup_physics_body, godot_create_animation_player, godot_create_shader, …
 Phase 14  Testing           godot_assert_property_equals, godot_run_test_scenario, godot_stress_test_scene
 Phase 15  Agentic           godot_build_feature, godot_refactor_safely, godot_run_validation_loop, …

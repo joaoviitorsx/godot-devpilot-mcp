@@ -25,6 +25,8 @@ Este documento deve ser atualizado sempre que uma ferramenta for adicionada, rem
 
 **Execução e testes (`core`/`full`/`agentic`):** `devpilot_run_headless(seconds?, godot_bin?)` usa tempo de relógio, encerra o processo ao atingir o limite e retorna erro se o Godot encerrar com código não zero ou emitir `ERROR:`. `devpilot_run_gut_tests(test_path?, godot_bin?, timeout_seconds?)` exige `res://addons/gut/gut_cmdln.gd`, aceita diretório de testes ou script `.gd` dentro do projeto e devolve o resultado do runner GUT.
 
+**Starter 3D (`full`/`agentic`):** `devpilot_create_3d_starter(mode="fps"|"tps", scene_path="res://scenes/godopilot_3d_starter.tscn", script_path="res://scripts/godopilot_3d_controller.gd", set_main_scene_if_empty=true, dry_run=false)` cria uma arena jogável com malhas, colisões, câmera, luz, ambiente, HUD e controlador WASD/salto/mouse. Ações de input ausentes são acrescentadas somente em tempo de execução; mapeamentos existentes são preservados. Se não houver cena principal, a ferramenta faz backup de `project.godot` e configura a cena nova. Arquivos existentes com conteúdo diferente não são sobrescritos; `dry_run=true` lista as alterações sem gravar arquivos. O resultado informa `scene_path`, `script_path`, `created_files`, `main_scene`, `project_backup` e `scene_audit_findings`.
+
 ---
 
 ## 2. Convenções gerais

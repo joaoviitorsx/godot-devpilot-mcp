@@ -15,6 +15,7 @@
 - A ferramenta headless mede segundos de relógio e retorna falha quando o Godot informa erros de execução. A convenção de cenas aceita nomes `snake_case`, de acordo com a documentação da engine. Próximos passos estão em [desenvolvimento de jogos com IA](ai_game_development_roadmap.md).
 - A instalação inclui `.gdignore` em `.godot_mcp/runtime` para que o editor não importe dependências Node como assets do jogo. Uma instalação anterior sem esse arquivo é atualizada na próxima execução do instalador.
 - A revisão 3D adicionou a auditoria estática `devpilot_audit_3d_scene` e o prompt `devpilot_3d_vertical_slice`. A auditoria acusa recursos ausentes nos blueprints ou em cenas feitas à mão, mas não substitui validação do editor, reimportação de modelos e teste de gameplay. A [trilha 3D](ai_game_development_roadmap.md#trilha-específica-para-jogos-3d) detalha os incrementos seguintes.
+- `devpilot_create_3d_starter` cria uma arena FPS/TPS com script, recursos 3D atribuídos e cena principal inicial quando vazia. Prévia, proteção contra sobrescrita e backup de `project.godot` fazem parte do contrato. FPS e TPS passaram por importação e execução de 30 frames no Godot 4.6.3. Em 4.3, a importação headless termina com código zero, mas emite `mesh_get_surface_count: Parameter "m" is null`; há um [bug confirmado do renderizador dummy no Godot](https://github.com/godotengine/godot/issues/86806). Essa execução não comprova compatibilidade visual ou de gameplay na versão 4.3.
 
 ## Verificações ainda externas
 

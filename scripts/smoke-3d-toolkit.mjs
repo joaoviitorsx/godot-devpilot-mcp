@@ -38,6 +38,8 @@ try {
     bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: 36 }],
     buffers: [{ uri: `data:application/octet-stream;base64,${triangle.toString("base64")}`, byteLength: 36 }]
   }));
+  const importResult = spawnSync(godotBin, ["--headless", "--path", root, "--import"], { windowsHide: true, encoding: "utf8", timeout: 60000 });
+  assert.equal(importResult.status, 0, `Godot import failed: ${importResult.error?.message ?? ""}\n${importResult.stdout}\n${importResult.stderr}`);
   editor = spawn(godotBin, ["--headless", "--path", root, "--editor"], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   editor.stdout.on("data", (data) => { editorOutput = `${editorOutput}${data}`.slice(-8000); });
   editor.stderr.on("data", (data) => { editorOutput = `${editorOutput}${data}`.slice(-8000); });

@@ -380,6 +380,62 @@ func set_node_property(params: Dictionary) -> Dictionary:
 	)
 
 
+func assign_3d_resource(params: Dictionary) -> Dictionary:
+	var editor_check := _require_editor()
+	if not editor_check.is_empty():
+		return editor_check
+	var scene_root: Node = _require_scene_root()
+	if scene_root == null:
+		return ResponseFactory.error("NO_SCENE_OPEN", "No scene is currently open.", {}, ["Open a scene first."])
+	var undo_check := _require_undo_redo("node.assign_3d_resource")
+	if not undo_check.is_empty():
+		return undo_check
+
+	var node_path: String = str(params.get("node_path", ""))
+	var property: String = str(params.get("property", ""))
+	var resource_type: String = str(params.get("resource_type", ""))
+	var node := _resolve_node(scene_root, node_path)
+	if node == null:
+		return ResponseFactory.error("NODE_NOT_FOUND", "Node not found.", {"node_path": node_path}, [])
+
+	var allowed := {
+		"MeshInstance3D:mesh": ["BoxMesh", "SphereMesh", "CapsuleMesh", "CylinderMesh", "PlaneMesh", "PrismMesh", "TorusMesh"],
+		"CollisionShape3D:shape": ["BoxShape3D", "SphereShape3D", "CapsuleShape3D", "CylinderShape3D"],
+		"WorldEnvironment:environment": ["Environment"],
+		"NavigationRegion3D:navigation_mesh": ["NavigationMesh"]
+	}
+	var key := "%s:%s" % [node.get_class(), property]
+	if not allowed.has(key) or not (resource_type in allowed[key]):
+		return ResponseFactory.error("INVALID_RESOURCE_TYPE", "Resource type is not allowed for this 3D node property.", {"node_type": node.get_class(), "property": property, "resource_type": resource_type}, [])
+
+	var resource: Resource = ClassDB.instantiate(resource_type) as Resource
+	if resource == null:
+		return ResponseFactory.error("INVALID_RESOURCE_TYPE", "Could not create the requested resource.", {"resource_type": resource_type}, [])
+	if resource is Environment:
+		resource.background_mode = Environment.BG_COLOR
+		resource.background_color = Color(0.12, 0.17, 0.24)
+	if resource is NavigationMesh:
+		var width := float(params.get("width", 10.0))
+		var depth := float(params.get("depth", 10.0))
+		if width < 0.5 or width > 1000.0 or depth < 0.5 or depth > 1000.0:
+			return ResponseFactory.error("INVALID_NAVIGATION_SIZE", "Navigation width and depth must be between 0.5 and 1000.", {"width": width, "depth": depth}, [])
+		var half_width := width / 2.0
+		var half_depth := depth / 2.0
+		resource.vertices = PackedVector3Array([
+			Vector3(-half_width, 0.0, -half_depth),
+			Vector3(half_width, 0.0, -half_depth),
+			Vector3(half_width, 0.0, half_depth),
+			Vector3(-half_width, 0.0, half_depth)
+		])
+		resource.add_polygon(PackedInt32Array([0, 3, 2, 1]))
+	var old_value = node.get(property)
+	_undo_service.create_action("Assign %s to %s.%s" % [resource_type, node.name, property])
+	_undo_service.add_do_property(node, property, resource)
+	_undo_service.add_undo_property(node, property, old_value)
+	_undo_service.commit_action()
+	return ResponseFactory.success({"node_path": node_path, "property": property, "resource_type": resource_type}, "3D resource assigned.")
+
+
 # ── Node groups ───────────────────────────────────────────────────────────────
 
 func get_node_groups(params: Dictionary) -> Dictionary:

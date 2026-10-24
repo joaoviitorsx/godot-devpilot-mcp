@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,7 +21,11 @@ function makeGodot(): GodotClient {
   return {
     getStatus: vi.fn().mockReturnValue({ connected: true }),
     connect: vi.fn().mockResolvedValue({ ok: true }),
-    call: vi.fn().mockResolvedValue({ ok: true, data: {}, message: "ok", warnings: [], suggestions: [] })
+    call: vi.fn().mockImplementation(async (method: string, params: Record<string, string>) => ({
+      ok: true,
+      data: method === "node.add" ? { path: params.parent_path === "." ? params.node_name : `${params.parent_path}/${params.node_name}` } : {},
+      message: "ok", warnings: [], suggestions: []
+    }))
   } as unknown as GodotClient;
 }
 
@@ -111,6 +115,7 @@ describe("toolkit3d — script generation", () => {
     expect(content).toContain("CharacterBody3D");
     expect(content).toContain("move_and_slide()");
     expect(content).toContain("MOUSE_MODE_CAPTURED");
+    expect(content).toContain('InputMap.add_action(action)');
   });
 
   it("rejects non-.gd path for third_person_controller", async () => {
@@ -131,9 +136,37 @@ describe("toolkit3d — script generation", () => {
     expect(second.ok).toBe(false);
     expect(second.error.code).toBe("FILE_ALREADY_EXISTS");
   });
+
+  it("backs up a controller script before an explicit overwrite", async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, "scripts"));
+    await writeFile(path.join(root, "scripts", "X.gd"), "original script");
+    const server = makeServer();
+    registerToolkit3dTools(server as never, makeGodot(), makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_setup_third_person_controller", { script_path: "res://scripts/X.gd", overwrite: true }) as { content: Array<{ text: string }> });
+    expect(result.ok).toBe(true);
+    expect(await readFile(path.join(root, "scripts", "X.gd"), "utf8")).toContain("extends CharacterBody3D");
+    const days = await readdir(path.join(root, ".godot_mcp", "backups"));
+    const metadata = await readFile(path.join(root, ".godot_mcp", "backups", days[0], "metadata.jsonl"), "utf8");
+    const backup = JSON.parse(metadata.trim().split("\n")[0]);
+    expect(await readFile(path.join(root, backup.backup.replace("res://", "")), "utf8")).toBe("original script");
+  });
 });
 
 describe("toolkit3d — orchestration", () => {
+  it("does not write a player script when no editable parent scene is available", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot();
+    (godot.call as ReturnType<typeof vi.fn>).mockImplementation(async (method: string) => method === "node.get_properties"
+      ? { ok: false, error: { code: "NO_SCENE_OPEN", message: "No scene open", details: {}, suggestions: [] } }
+      : { ok: true, data: {}, message: "ok", warnings: [], suggestions: [] });
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_create_character_body_3d", {}) as { content: Array<{ text: string }> });
+    expect(result.error.code).toBe("NO_SCENE_OPEN");
+    await expect(readFile(path.join(root, "scripts", "Player3D.gd"), "utf8")).rejects.toThrow();
+  });
+
   it("setup_camera_3d sets current and fov", async () => {
     const root = await makeRoot();
     const godot = makeGodot();
@@ -161,6 +194,10 @@ describe("toolkit3d — orchestration", () => {
     expect(types).toContain("MeshInstance3D");
     expect(types).toContain("CollisionShape3D");
     expect(types).toContain("Camera3D");
+    const assigned = (godot.call as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => c[0] === "node.assign_3d_resource")
+      .map((c) => (c[1] as { resource_type: string }).resource_type);
+    expect(assigned).toEqual(["CapsuleMesh", "CapsuleShape3D"]);
   });
 
   it("setup_lighting adds DirectionalLight3D + WorldEnvironment", async () => {
@@ -175,6 +212,10 @@ describe("toolkit3d — orchestration", () => {
       .map((c) => (c[1] as { node_type: string }).node_type);
     expect(types).toContain("DirectionalLight3D");
     expect(types).toContain("WorldEnvironment");
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "node.assign_3d_resource",
+      { node_path: "WorldEnvironment", property: "environment", resource_type: "Environment" }
+    ]);
   });
 
   it("create_navigation_region_3d adds NavigationRegion3D", async () => {
@@ -182,12 +223,16 @@ describe("toolkit3d — orchestration", () => {
     const godot = makeGodot();
     const server = makeServer();
     registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
-    const r = parse(await server.run("godot_create_navigation_region_3d", {}) as { content: Array<{ text: string }> });
+    const r = parse(await server.run("godot_create_navigation_region_3d", { width: 12, depth: 8 }) as { content: Array<{ text: string }> });
     expect(r.ok).toBe(true);
     const types = (godot.call as ReturnType<typeof vi.fn>).mock.calls
       .filter((c) => c[0] === "node.add")
       .map((c) => (c[1] as { node_type: string }).node_type);
     expect(types).toContain("NavigationRegion3D");
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "node.assign_3d_resource",
+      { node_path: "NavigationRegion3D", property: "navigation_mesh", resource_type: "NavigationMesh", width: 12, depth: 8 }
+    ]);
   });
 
   it("create_raycast_3d sets target_position and enabled", async () => {
@@ -214,18 +259,30 @@ describe("toolkit3d — orchestration", () => {
     expect(r.error.code).toBe("INVALID_PARAMS");
   });
 
-  it("import_gltf adds Node3D placeholder for valid path", async () => {
+  it("import_gltf rejects missing or escaping model paths", async () => {
     const root = await makeRoot();
+    const server = makeServer();
+    registerToolkit3dTools(server as never, makeGodot(), makeConfig(false, root) as never);
+    const missing = parse(await server.run("godot_import_gltf", { gltf_path: "res://missing.glb" }) as { content: Array<{ text: string }> });
+    expect(missing.error.code).toBe("FILE_NOT_FOUND");
+    const escaped = parse(await server.run("godot_import_gltf", { gltf_path: "res://../outside.glb" }) as { content: Array<{ text: string }> });
+    expect(escaped.ok).toBe(false);
+  });
+
+  it("import_gltf instances an existing imported model", async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, "models"));
+    await writeFile(path.join(root, "models", "scene.gltf"), '{"asset":{"version":"2.0"}}');
     const godot = makeGodot();
     const server = makeServer();
     registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
-    const r = parse(await server.run("godot_import_gltf", { gltf_path: "res://models/scene.glb" }) as { content: Array<{ text: string }> });
+    const r = parse(await server.run("godot_import_gltf", { gltf_path: "res://models/scene.gltf" }) as { content: Array<{ text: string }> });
     expect(r.ok).toBe(true);
-    expect(r.data.instanced).toBe(false);
-    const types = (godot.call as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c) => c[0] === "node.add")
-      .map((c) => (c[1] as { node_type: string }).node_type);
-    expect(types).toContain("Node3D");
+    expect(r.data.instanced).toBe(true);
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "scene.add_instance",
+      { scene_path: "res://models/scene.gltf", parent_path: ".", instance_name: "" }
+    ]);
   });
 
   it("create_primitive_mesh adds MeshInstance3D and reports suggestion", async () => {
@@ -240,5 +297,9 @@ describe("toolkit3d — orchestration", () => {
       .filter((c) => c[0] === "node.add")
       .map((c) => (c[1] as { node_type: string }).node_type);
     expect(types).toContain("MeshInstance3D");
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "node.assign_3d_resource",
+      { node_path: "Sphere", property: "mesh", resource_type: "SphereMesh" }
+    ]);
   });
 });

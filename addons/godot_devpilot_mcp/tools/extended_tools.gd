@@ -268,11 +268,13 @@ func add_scene_instance(params: Dictionary) -> Dictionary:
 
 	if scene_path.is_empty():
 		return ResponseFactory.error("INVALID_PARAMS", "scene_path is required.", {}, [])
+	if not _valid_project_file_path(scene_path):
+		return ResponseFactory.error("INVALID_PARAMS", "scene_path must stay inside res://.", {"scene_path": scene_path}, [])
 
-	if not scene_path.ends_with(".tscn") and not scene_path.ends_with(".scn"):
-		return ResponseFactory.error("INVALID_PARAMS", "scene_path must be a .tscn or .scn file.", {}, [])
+	if not scene_path.ends_with(".tscn") and not scene_path.ends_with(".scn") and not scene_path.ends_with(".gltf") and not scene_path.ends_with(".glb"):
+		return ResponseFactory.error("INVALID_PARAMS", "scene_path must be a .tscn, .scn, .gltf or .glb file.", {}, [])
 
-	var packed_scene: PackedScene = load(scene_path) as PackedScene
+	var packed_scene: PackedScene = ResourceLoader.load(scene_path, "PackedScene") as PackedScene
 	if packed_scene == null:
 		return ResponseFactory.error("SCENE_NOT_FOUND", "Scene file not found or invalid.", {"path": scene_path}, [])
 

@@ -27,6 +27,8 @@ Este documento deve ser atualizado sempre que uma ferramenta for adicionada, rem
 
 **Starter 3D (`full`/`agentic`):** `devpilot_create_3d_starter(mode="fps"|"tps", scene_path="res://scenes/godopilot_3d_starter.tscn", script_path="res://scripts/godopilot_3d_controller.gd", set_main_scene_if_empty=true, dry_run=false)` cria uma arena jogável com malhas, colisões, câmera, luz, ambiente, HUD e controlador WASD/salto/mouse. Ações de input ausentes são acrescentadas somente em tempo de execução; mapeamentos existentes são preservados. Se não houver cena principal, a ferramenta faz backup de `project.godot` e configura a cena nova. Arquivos existentes com conteúdo diferente não são sobrescritos; `dry_run=true` lista as alterações sem gravar arquivos. O resultado informa `scene_path`, `script_path`, `created_files`, `main_scene`, `project_backup` e `scene_audit_findings`.
 
+**Componentes 3D no editor (`full`/`agentic`):** `godot_create_character_body_3d` atribui `CapsuleMesh` e `CapsuleShape3D`, posiciona a câmera TPS e fornece ações de movimento ausentes apenas em tempo de execução. `godot_create_primitive_mesh(primitive?)` atribui a malha escolhida. `godot_setup_lighting` cria `WorldEnvironment` com `Environment` de fundo colorido. `godot_create_navigation_region_3d(width=10, depth=10)` atribui um `NavigationMesh` retangular plano com um polígono voltado para cima; obstáculos e desníveis exigem bake a partir da geometria do nível. As atribuições usam UndoRedo por meio de uma lista restrita de tipos na ponte Godot. `godot_import_gltf(gltf_path, parent_path?, name?, dry_run?)` instancia um `.gltf` ou `.glb` existente e já importado pelo editor; não cria colisão ou ajusta automaticamente escala, materiais e animações.
+
 ---
 
 ## 2. Convenções gerais

@@ -6,6 +6,10 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+---
+
+## [2.7.0] — 2026-10-24 — Installation and 3D workflow
+
 ### Added
 - Installer for Claude Code and Codex, release archive with SHA-256 checksum, CI validation, and Graphify setup guide.
 - Optional Better Tile Editor bridge for terrain discovery, creation, tile assignment and painting in Godot 4.6+, plus TileSet atlas creation from an imported texture.
@@ -13,12 +17,14 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 - Optional GUT CLI test runner with bounded output and a documented AI game-development workflow.
 - One-command `install.sh` / `install.ps1` bootstraps and a packable `godopilot` CLI that uses the current game directory, installs a stable project-local runtime, and adds small Claude/Codex project guidance.
 - `devpilot_create_3d_starter` generates a runnable FPS/TPS arena, controller and assigned 3D resources in one call, with dry-run preview, conflict protection and safe initial main-scene setup.
+- 3D editor tools now assign primitive meshes, collision shapes, environments and flat NavigationMeshes directly, and `godot_import_gltf` instances imported models instead of leaving placeholders.
 
 ### Fixed
 - Project path checks, authenticated editor bridge, snapshot rollback safety, tool modes, evaluation runner, and workflow calls that targeted unavailable Godot methods.
 - Backups before Better Tile Editor changes to TileSet or scene files.
 - Idempotent installation with automatic client detection and Godot plugin activation while preserving existing editor plugins; corrected headless runtime timeout and failure reporting.
 - Scene naming check accepts Godot's recommended `snake_case` filenames.
+- 3D editor tools use the actual node path returned by Godot when names collide, and controller script overwrites create backups.
 
 ---
 

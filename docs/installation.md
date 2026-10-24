@@ -89,7 +89,7 @@ Variáveis opcionais: `GODOT_MCP_HOST` (padrão `127.0.0.1`), `GODOT_MCP_PORT` (
 
 ## Pacote de distribuição
 
-O pacote npm é gerado por `npm pack` e contém o comando `godopilot`. Para testar localmente antes da publicação, execute `npm pack --pack-destination release` neste repositório; dentro do jogo, rode `npm exec --yes --package="/caminho/para/release/godopilot-mcp-2.6.0.tgz" -- godopilot`. O pacote não requer checkout Git no computador do jogador. A publicação no registro npm permitiria `npx godopilot-mcp` no futuro; **este nome ainda não foi publicado**.
+O pacote npm é gerado por `npm pack` e contém o comando `godopilot`. Para testar localmente antes da publicação, execute `npm pack --pack-destination release` neste repositório; dentro do jogo, rode `npm exec --yes --package="/caminho/para/release/godopilot-mcp-2.7.0.tgz" -- godopilot`. O pacote não requer checkout Git no computador do jogador. A publicação no registro npm permitiria `npx godopilot-mcp` no futuro; **este nome ainda não foi publicado**.
 
 O arquivo de release tradicional continua disponível: `node scripts/package-release.mjs` produz `release/godot-devpilot-mcp-v<versão>.tar.gz` com SHA-256. Após extrair, execute `node /caminho/da/extracao/bin/godopilot.mjs` dentro da pasta do jogo.
 

@@ -49,6 +49,8 @@ jobs:
           chmod +x /tmp/Godot_v4.6.3-stable_linux.x86_64
       - name: Create and run FPS/TPS starter scenes
         run: node scripts/smoke-3d-starter.mjs /tmp/Godot_v4.6.3-stable_linux.x86_64
+      - name: Assign 3D toolkit resources through the editor bridge
+        run: node scripts/smoke-3d-toolkit.mjs /tmp/Godot_v4.6.3-stable_linux.x86_64
       - name: Parse addon and import project
         run: |
           set -euo pipefail

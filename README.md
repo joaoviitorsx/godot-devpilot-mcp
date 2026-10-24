@@ -31,7 +31,7 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 16 | Release prep (CHANGELOG, demos) | ✅ |
 | 2.x | Prompt-first workflows, genre blueprints, blueprint library, snapshots, CI | ✅ |
 
-**Version:** 2.6.0 — see `CHANGELOG.md`.  
+**Version:** 2.7.0 — see `CHANGELOG.md`.
 **Build:** clean (`npm run build`).  
 **Tests:** run `npm test` in `mcp-server/` for the current count.
 **Tools registered:** varies by `minimal`, `core`, `full`, and `agentic`; `godot_get_capabilities` returns the exact active list.
@@ -80,6 +80,8 @@ Product naming proposal: [GodoPilot](docs/branding.md).
 Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) (optional, Godot 4.6+).
 
 To start a 3D game, ask the AI to call `devpilot_create_3d_starter` with `mode="fps"` or `mode="tps"` (available in `full` and `agentic`). It creates a playable arena and controller in one call. If your project already has a main scene, it keeps it and you can play the generated scene with F6. Use `dry_run=true` to preview the files. See the [3D workflow](docs/ai_game_development_roadmap.md#trilha-específica-para-jogos-3d).
+
+For an existing 3D scene, `godot_create_character_body_3d`, `godot_create_primitive_mesh`, `godot_setup_lighting`, and `godot_create_navigation_region_3d` now assign their resources directly in the editor. `godot_import_gltf` instances an already imported `.gltf` or `.glb` scene. The navigation region starts with a flat rectangle; bake from level geometry for obstacles and uneven terrain.
 
 First prompt to try: *"Call `devpilot_game_context`, tell me the main scene and the next playable feature, then use `devpilot_feature_loop` to implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md) and `docs/cookbook.md`.
 

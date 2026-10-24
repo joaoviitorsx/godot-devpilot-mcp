@@ -14,7 +14,7 @@ const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tool
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 const BetterTileEditorTools = preload("res://addons/godot_devpilot_mcp/tools/better_tile_editor_tools.gd")
 
-const PLUGIN_VERSION := "2.6.0"
+const PLUGIN_VERSION := "2.7.0"
 const PROTOCOL_VERSION := "1.0.0"
 
 var editor_interface
@@ -142,6 +142,8 @@ func dispatch(request: Variant) -> Dictionary:
 			return Protocol.success_envelope(request_id, _node_tools.get_node_properties(params))
 		"node.set_property":
 			return Protocol.success_envelope(request_id, _node_tools.set_node_property(params))
+		"node.assign_3d_resource":
+			return Protocol.success_envelope(request_id, _node_tools.assign_3d_resource(params))
 		"node.get_groups":
 			return Protocol.success_envelope(request_id, _node_tools.get_node_groups(params))
 		"node.add_to_group":
@@ -397,6 +399,7 @@ func _get_capabilities(_params: Dictionary) -> Dictionary:
 				"node.reparent",
 				"node.get_properties",
 				"node.set_property",
+				"node.assign_3d_resource",
 				"node.get_groups",
 				"node.add_to_group",
 				"node.remove_from_group",

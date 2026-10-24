@@ -1,6 +1,6 @@
 {
   "name": "godopilot-mcp",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "One-command Godot MCP setup for Claude Code and Codex",
   "type": "module",
   "bin": {

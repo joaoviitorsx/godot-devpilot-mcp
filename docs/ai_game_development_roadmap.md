@@ -61,6 +61,8 @@ Antes de criar novas famílias de ferramentas, medir o custo de descoberta do ca
 
 As etapas restantes dessa trilha são planejadas. O MCP cobre as operações expostas por suas ferramentas e pela ponte Godot, não a totalidade da API interna da engine. Uma função nova precisa de contrato, implementação no servidor e, quando envolver o editor, método correspondente no plugin, além de teste real no Godot.
 
+O [plano de cobertura da engine](engine_coverage_plan.md) define a sequência para ampliar esse acesso após a estabilização da versão 2.8: inventário, descoberta por tarefa, introspecção, operações tipadas, fluxos de produção e avaliação contínua.
+
 ## Referências técnicas
 
 - [Recursos MCP](https://modelcontextprotocol.io/specification/2025-11-25/server/resources) e [prompts MCP](https://modelcontextprotocol.io/specification/2025-11-25/server/prompts).

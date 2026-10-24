@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -8,7 +9,11 @@ import type { ServerConfig } from "../src/config/config";
 import type { GodotClient } from "../src/godot/client";
 import { registerSceneTools } from "../src/tools/sceneTools";
 
-function makeConfig(readOnly = false, projectRoot = "/fake/project"): ServerConfig {
+function makeConfig(readOnly = false, projectRoot?: string): ServerConfig {
+  if (!projectRoot) {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), "godot-devpilot-scene-tools-"));
+    roots.push(projectRoot);
+  }
   return {
     server: { name: "test", version: "0.0.0" },
     godot: { host: "127.0.0.1", port: 6505, timeout: 5000, reconnectDelay: 1000, maxReconnectDelay: 30000 },

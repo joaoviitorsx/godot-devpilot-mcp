@@ -8,6 +8,19 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.8.0] — 2026-10-24 — Reliable tests and modular 3D levels
+
+### Added
+- Project-local `godopilot doctor` diagnostics for runtime, plugin, AI client, token and authenticated editor connection.
+- NavigationMesh baking from scene geometry, imported glTF inspection, and GridMap creation, palette inspection and undoable cell painting.
+- Godot 4.3 and Windows compatibility jobs in CI.
+
+### Fixed
+- Behavior replay now fails on input, assertion and stop errors, always attempts to stop the game, and accepts saved test scenario steps.
+- Composite 3D tools remove newly created nodes and restore a controller script when an editor step fails.
+
+---
+
 ## [2.7.0] — 2026-10-24 — Installation and 3D workflow
 
 ### Added

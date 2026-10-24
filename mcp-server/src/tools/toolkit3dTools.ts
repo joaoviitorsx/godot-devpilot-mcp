@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { mkdir, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm, access } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
@@ -23,11 +23,15 @@ function toMcpResult(response: ToolResponse): CallToolResult {
 }
 
 async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
-  if (!godot.getStatus().connected) {
-    const connection = await godot.connect();
-    if (!connection.ok) return connection;
+  try {
+    if (!godot.getStatus().connected) {
+      const connection = await godot.connect();
+      if (!connection.ok) return connection;
+    }
+    return await godot.call(method, params);
+  } catch (error) {
+    return createErrorResponse("EDITOR_RPC_FAILED", `Editor request ${method} failed.`, { cause: error instanceof Error ? error.message : String(error) }, []);
   }
-  return godot.call(method, params);
 }
 
 function ctx(toolName: string, config: ServerConfig) {
@@ -82,6 +86,33 @@ async function runSteps(steps: Array<() => Promise<ToolResponse>>): Promise<Tool
     if (!response.ok) return response;
   }
   return null;
+}
+
+async function rollbackComposite(godot: GodotClient, paths: string[], failure: ToolResponse, script?: { absolutePath: string; previous?: string }): Promise<ToolResponse> {
+  const cleanupErrors: string[] = [];
+  for (const nodePath of [...paths].reverse()) {
+    try {
+      const removed = await callAfterConnect(godot, "node.remove", { node_path: nodePath });
+      if (!removed.ok) cleanupErrors.push(`${nodePath}: ${removed.error.code}`);
+    } catch (error) {
+      cleanupErrors.push(`${nodePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (script) {
+    try {
+      if (script.previous === undefined) await rm(script.absolutePath, { force: true });
+      else await writeFile(script.absolutePath, script.previous, "utf8");
+    } catch (error) {
+      cleanupErrors.push(`${script.absolutePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const original = failure.ok ? createErrorResponse("COMPOSITE_FAILED", "Composite operation failed.", {}, []) : failure;
+  return createErrorResponse(
+    cleanupErrors.length ? "ROLLBACK_FAILED" : original.error.code,
+    cleanupErrors.length ? "The operation failed and cleanup was incomplete." : original.error.message,
+    { ...original.error.details, rollback: { completed: cleanupErrors.length === 0, removed_nodes: paths, restored_script: script?.absolutePath, errors: cleanupErrors } },
+    original.error.suggestions
+  );
 }
 
 async function attachScript(godot: GodotClient, nodePath: string, scriptPath: string): Promise<ToolResponse> {
@@ -189,7 +220,7 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
           () => setProperty(godot, camPath, "current", true),
           () => setProperty(godot, camPath, "fov", fovDeg)
         ]);
-        if (failed) return failed;
+        if (failed) return rollbackComposite(godot, [camPath], failed);
 
         return createSuccessResponse(
           { camera_path: camPath, fov: fovDeg },
@@ -237,13 +268,19 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
         const parentCheck = await callAfterConnect(godot, "node.get_properties", { node_path: parent });
         if (!parentCheck.ok) return parentCheck;
 
+        const scriptAbsolutePath = resolveProjectPath(scriptResPath, config.projectRoot).absolutePath;
+        const previousScript = await readFile(scriptAbsolutePath, "utf8").catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return undefined;
+          throw error;
+        });
         const write = await writeScriptFile(config.projectRoot, scriptResPath, THIRD_PERSON_CONTROLLER, overwrite_script ?? false, "godot_create_character_body_3d");
         if (!write.written) return createErrorResponse("FILE_ALREADY_EXISTS", write.reason!, { path: scriptResPath }, []);
+        const scriptRollback = { absolutePath: scriptAbsolutePath, previous: previousScript };
 
         const added = await addChildNode(godot, parent, "CharacterBody3D", playerName);
-        if (!added.ok) return added;
+        if (!added.ok) return rollbackComposite(godot, [], added, scriptRollback);
         const playerPath = addedNodePath(added);
-        if (!playerPath) return missingNodePath();
+        if (!playerPath) return rollbackComposite(godot, [], missingNodePath(), scriptRollback);
         const steps: Array<() => Promise<ToolResponse>> = [
           () => addChildNode(godot, playerPath, "MeshInstance3D", "Mesh"),
           () => assign3DResource(godot, `${playerPath}/Mesh`, "mesh", "CapsuleMesh"),
@@ -260,7 +297,7 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
         steps.push(() => attachScript(godot, playerPath, scriptResPath));
 
         const failed = await runSteps(steps);
-        if (failed) return failed;
+        if (failed) return rollbackComposite(godot, [playerPath], failed, scriptRollback);
 
         return createSuccessResponse(
           { player_path: playerPath, script_path: scriptResPath, camera_included: withCamera },
@@ -311,13 +348,13 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
           () => setProperty(godot, lightPath, "light_energy", energy),
           () => setProperty(godot, lightPath, "shadow_enabled", true)
         ]);
-        if (failed) return failed;
+        if (failed) return rollbackComposite(godot, [lightPath], failed);
         const addedEnv = await addChildNode(godot, parent, "WorldEnvironment", envName);
-        if (!addedEnv.ok) return addedEnv;
+        if (!addedEnv.ok) return rollbackComposite(godot, [lightPath], addedEnv);
         const envPath = addedNodePath(addedEnv);
-        if (!envPath) return missingNodePath();
+        if (!envPath) return rollbackComposite(godot, [lightPath], missingNodePath());
         const assigned = await assign3DResource(godot, envPath, "environment", "Environment");
-        if (!assigned.ok) return assigned;
+        if (!assigned.ok) return rollbackComposite(godot, [envPath, lightPath], assigned);
 
         return createSuccessResponse(
           { light_path: lightPath, env_path: envPath, light_energy: energy },
@@ -389,7 +426,7 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
         const meshPath = addedNodePath(r);
         if (!meshPath) return missingNodePath();
         const assigned = await assign3DResource(godot, meshPath, "mesh", suggestedPrim);
-        if (!assigned.ok) return assigned;
+        if (!assigned.ok) return rollbackComposite(godot, [meshPath], assigned);
         return createSuccessResponse(
           { mesh_path: meshPath, primitive: suggestedPrim, suggested_primitive: suggestedPrim },
           "MeshInstance3D created with a primitive mesh."
@@ -428,13 +465,40 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
         const navPath = addedNodePath(r);
         if (!navPath) return missingNodePath();
         const assigned = await assign3DResource(godot, navPath, "navigation_mesh", "NavigationMesh", { width: navWidth, depth: navDepth });
-        if (!assigned.ok) return assigned;
+        if (!assigned.ok) return rollbackComposite(godot, [navPath], assigned);
         return createSuccessResponse(
           { navigation_path: navPath, width: navWidth, depth: navDepth },
           "NavigationRegion3D created with a flat NavigationMesh.",
           [],
           ["This flat rectangle ignores obstacles and height changes. Bake a NavigationMesh from level geometry for complex scenes."]
         );
+      })
+    )
+  );
+
+  server.tool(
+    "godot_bake_navigation_mesh_3d",
+    "Bake a NavigationRegion3D from meshes and static colliders in the open scene. Replaces its navigation mesh with an undoable resource only when walkable polygons are produced.",
+    {
+      region_path: z.string().describe("Path to a NavigationRegion3D in the open scene."),
+      source_root_path: z.string().optional().describe("Geometry subtree root. Defaults to the scene root ('.')."),
+      agent_radius: z.number().finite().min(0.05).max(10).optional().describe("Agent radius in Godot units. Defaults to 0.5."),
+      cell_size: z.number().finite().min(0.05).max(2).optional().describe("Bake voxel width in Godot units. Defaults to 0.25."),
+      dry_run: z.boolean().optional()
+    },
+    async ({ region_path, source_root_path, agent_radius, cell_size, dry_run }) => toMcpResult(
+      await executeToolSafely(ctx("godot_bake_navigation_mesh_3d", config), async (): Promise<ToolResponse> => {
+        if (dry_run) return createDryRunResponse({
+          toolName: "godot_bake_navigation_mesh_3d",
+          plannedChanges: [`Bake navigation from ${source_root_path ?? "."} into ${region_path}`],
+          affectedNodes: [region_path]
+        });
+        return callAfterConnect(godot, "node.bake_navigation_mesh_3d", {
+          region_path,
+          source_root_path: source_root_path ?? ".",
+          agent_radius: agent_radius ?? 0.5,
+          cell_size: cell_size ?? 0.25
+        });
       })
     )
   );
@@ -478,7 +542,7 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
           () => setProperty(godot, rcPath, "target_position", { x: tx, y: ty, z: tz }),
           () => setProperty(godot, rcPath, "enabled", true)
         ]);
-        if (failed) return failed;
+        if (failed) return rollbackComposite(godot, [rcPath], failed);
 
         return createSuccessResponse(
           { raycast_path: rcPath, target_position: { x: tx, y: ty, z: tz } },
@@ -530,6 +594,85 @@ export function registerToolkit3dTools(server: McpServer, godot: GodotClient, co
           [],
           ["Inspect scale, orientation, materials, animations and collision after import; add collision separately when gameplay needs it."]
         );
+      })
+    )
+  );
+
+  server.tool(
+    "godot_audit_gltf",
+    "Inspect a glTF/GLB scene already imported by Godot. Reports meshes, material coverage, animations, skeletons, collision and non-unit scales; visual orientation still requires review.",
+    { gltf_path: z.string().describe("Project-local res:// path to an imported .glb or .gltf file.") },
+    async ({ gltf_path }) => toMcpResult(
+      await executeToolSafely({ ...ctx("godot_audit_gltf", config), readOnly: false }, async (): Promise<ToolResponse> => {
+        const model = resolveProjectPath(gltf_path, config.projectRoot);
+        if (!(model.resPath.endsWith(".gltf") || model.resPath.endsWith(".glb"))) {
+          return createErrorResponse("INVALID_PARAMS", "gltf_path must end in .gltf or .glb.", { gltf_path }, []);
+        }
+        if (!await fileExists(model.absolutePath)) return createErrorResponse("FILE_NOT_FOUND", "Model file does not exist in this project.", { gltf_path: model.resPath }, []);
+        return callAfterConnect(godot, "node.audit_gltf_import", { gltf_path: model.resPath });
+      })
+    )
+  );
+
+  server.tool(
+    "godot_create_gridmap_3d",
+    "Create a GridMap for modular 3D level building. Use a project MeshLibrary, or omit it for a basic collidable Block palette.",
+    {
+      parent_path: z.string().optional().describe("Parent node path; defaults to scene root."),
+      name: z.string().optional().describe("GridMap node name; defaults to GridMap3D."),
+      cell_size: z.number().finite().min(0.25).max(100).optional().describe("Uniform cell size; defaults to 2 Godot units."),
+      mesh_library_path: z.string().optional().describe("Optional project-local res:// .tres or .res MeshLibrary."),
+      dry_run: z.boolean().optional()
+    },
+    async ({ parent_path, name, cell_size, mesh_library_path, dry_run }) => toMcpResult(
+      await executeToolSafely(ctx("godot_create_gridmap_3d", config), async (): Promise<ToolResponse> => {
+        let libraryPath = "";
+        if (mesh_library_path) {
+          const resolved = resolveProjectPath(mesh_library_path, config.projectRoot);
+          if (!(resolved.resPath.endsWith(".tres") || resolved.resPath.endsWith(".res"))) return createErrorResponse("INVALID_PARAMS", "mesh_library_path must end in .tres or .res.", { mesh_library_path }, []);
+          if (!await fileExists(resolved.absolutePath)) return createErrorResponse("FILE_NOT_FOUND", "MeshLibrary file does not exist.", { mesh_library_path: resolved.resPath }, []);
+          libraryPath = resolved.resPath;
+        }
+        if (dry_run) return createDryRunResponse({
+          toolName: "godot_create_gridmap_3d",
+          plannedChanges: [`Create GridMap '${name ?? "GridMap3D"}' under ${parent_path ?? "."} with ${libraryPath || "a primitive Block MeshLibrary"}`],
+          affectedNodes: [parent_path ?? "."],
+          affectedFiles: libraryPath ? [libraryPath] : []
+        });
+        return callAfterConnect(godot, "node.create_gridmap_3d", { parent_path: parent_path ?? ".", name: name ?? "GridMap3D", cell_size: cell_size ?? 2, mesh_library_path: libraryPath });
+      })
+    )
+  );
+
+  server.tool(
+    "godot_get_gridmap_palette",
+    "List item IDs, names, and collision/navigation coverage in a GridMap's MeshLibrary before placing cells.",
+    { gridmap_path: z.string().describe("Path to a GridMap in the open scene.") },
+    async ({ gridmap_path }) => toMcpResult(
+      await executeToolSafely({ ...ctx("godot_get_gridmap_palette", config), readOnly: false }, async (): Promise<ToolResponse> =>
+        callAfterConnect(godot, "node.get_gridmap_palette", { gridmap_path })
+      )
+    )
+  );
+
+  server.tool(
+    "godot_paint_gridmap_cells",
+    "Paint or erase up to 512 GridMap cells in one undoable editor action. Use item=-1 to erase; inspect palette first for valid IDs.",
+    {
+      gridmap_path: z.string().describe("Path to a GridMap in the open scene."),
+      cells: z.array(z.object({
+        x: z.number().int().min(-10000).max(10000),
+        y: z.number().int().min(-10000).max(10000),
+        z: z.number().int().min(-10000).max(10000),
+        item: z.number().int().min(-1),
+        orientation: z.number().int().min(0).max(23).optional()
+      })).min(1).max(512),
+      dry_run: z.boolean().optional()
+    },
+    async ({ gridmap_path, cells, dry_run }) => toMcpResult(
+      await executeToolSafely(ctx("godot_paint_gridmap_cells", config), async (): Promise<ToolResponse> => {
+        if (dry_run) return createDryRunResponse({ toolName: "godot_paint_gridmap_cells", plannedChanges: [`Paint ${cells.length} cells on ${gridmap_path}`], affectedNodes: [gridmap_path] });
+        return callAfterConnect(godot, "node.paint_gridmap_cells", { gridmap_path, cells });
       })
     )
   );

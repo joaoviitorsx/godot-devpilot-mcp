@@ -436,6 +436,207 @@ func assign_3d_resource(params: Dictionary) -> Dictionary:
 	return ResponseFactory.success({"node_path": node_path, "property": property, "resource_type": resource_type}, "3D resource assigned.")
 
 
+func bake_navigation_mesh_3d(params: Dictionary) -> Dictionary:
+	var editor_check := _require_editor()
+	if not editor_check.is_empty():
+		return editor_check
+	var scene_root: Node = _require_scene_root()
+	if scene_root == null:
+		return ResponseFactory.error("NO_SCENE_OPEN", "No scene is currently open.", {}, ["Open a scene first."])
+	var undo_check := _require_undo_redo("node.bake_navigation_mesh_3d")
+	if not undo_check.is_empty():
+		return undo_check
+	var region_path: String = str(params.get("region_path", ""))
+	var source_path: String = str(params.get("source_root_path", "."))
+	var region := _resolve_node(scene_root, region_path) as NavigationRegion3D
+	if region == null:
+		return ResponseFactory.error("INVALID_NAVIGATION_REGION", "region_path must point to a NavigationRegion3D in the open scene.", {"region_path": region_path}, [])
+	var source_root := _resolve_node(scene_root, source_path)
+	if source_root == null:
+		return ResponseFactory.error("NODE_NOT_FOUND", "Navigation source root not found.", {"source_root_path": source_path}, [])
+	var agent_radius: float = float(params.get("agent_radius", 0.5))
+	var cell_size: float = float(params.get("cell_size", 0.25))
+	if agent_radius < 0.05 or agent_radius > 10.0 or cell_size < 0.05 or cell_size > 2.0:
+		return ResponseFactory.error("INVALID_NAVIGATION_SETTINGS", "agent_radius or cell_size is outside the supported range.", {"agent_radius": agent_radius, "cell_size": cell_size}, [])
+	var old_mesh: NavigationMesh = region.navigation_mesh
+	var baked_mesh: NavigationMesh = old_mesh.duplicate(true) as NavigationMesh if old_mesh != null else NavigationMesh.new()
+	baked_mesh.agent_radius = agent_radius
+	baked_mesh.cell_size = cell_size
+	# Parse meshes and static colliders from the selected scene subtree.
+	baked_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_BOTH
+	baked_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
+	var source_data := NavigationMeshSourceGeometryData3D.new()
+	NavigationServer3D.parse_source_geometry_data(baked_mesh, source_data, source_root)
+	NavigationServer3D.bake_from_source_geometry_data(baked_mesh, source_data)
+	if baked_mesh.get_polygon_count() == 0:
+		return ResponseFactory.error("NAVIGATION_BAKE_EMPTY", "No walkable polygons were produced from the selected geometry.", {"source_root_path": source_path, "region_path": region_path}, ["Check floor meshes or static colliders and the agent radius."])
+	_undo_service.create_action("Bake 3D navigation mesh")
+	_undo_service.add_do_property(region, "navigation_mesh", baked_mesh)
+	_undo_service.add_undo_property(region, "navigation_mesh", old_mesh)
+	_undo_service.commit_action()
+	return ResponseFactory.success({"region_path": region_path, "source_root_path": source_path, "polygon_count": baked_mesh.get_polygon_count(), "vertex_count": baked_mesh.get_vertices().size(), "agent_radius": agent_radius, "cell_size": cell_size}, "Navigation mesh baked from scene geometry.")
+
+
+func audit_gltf_import(params: Dictionary) -> Dictionary:
+	var source_path: String = str(params.get("gltf_path", ""))
+	if not source_path.begins_with("res://") or source_path.contains("..") or not (source_path.ends_with(".glb") or source_path.ends_with(".gltf")):
+		return ResponseFactory.error("INVALID_PARAMS", "gltf_path must be a project-local .glb or .gltf path.", {"gltf_path": source_path}, [])
+	var imported := ResourceLoader.load(source_path)
+	if not imported is PackedScene:
+		return ResponseFactory.error("GLTF_NOT_IMPORTED", "Godot could not load the imported glTF as a PackedScene.", {"gltf_path": source_path}, ["Open the project in the editor and wait for import to finish."])
+	var root: Node = imported.instantiate()
+	if root == null:
+		return ResponseFactory.error("GLTF_INSTANTIATION_FAILED", "Godot could not instantiate the imported glTF scene.", {"gltf_path": source_path}, [])
+	var mesh_count := 0
+	var surface_count := 0
+	var material_count := 0
+	var collision_count := 0
+	var skeleton_count := 0
+	var animation_names: Array[String] = []
+	var scaled_nodes: Array[String] = []
+	var nodes: Array[Node] = [root]
+	while not nodes.is_empty():
+		var node: Node = nodes.pop_back()
+		for child in node.get_children():
+			nodes.append(child)
+		if node is Node3D:
+			var scale3d: Vector3 = node.scale
+			if not scale3d.is_equal_approx(Vector3.ONE):
+				scaled_nodes.append(str(root.get_path_to(node)))
+		if node is MeshInstance3D and node.mesh != null:
+			mesh_count += 1
+			for surface in range(node.mesh.get_surface_count()):
+				surface_count += 1
+				if node.get_active_material(surface) != null:
+					material_count += 1
+		if node is CollisionShape3D and node.shape != null:
+			collision_count += 1
+		if node is Skeleton3D:
+			skeleton_count += 1
+		if node is AnimationPlayer:
+			for animation_name in node.get_animation_list():
+				animation_names.append(str(animation_name))
+	root.free()
+	var warnings: Array[String] = []
+	if mesh_count == 0:
+		warnings.append("Imported scene contains no MeshInstance3D with a mesh.")
+	if surface_count > 0 and material_count < surface_count:
+		warnings.append("Some mesh surfaces have no material; inspect the imported appearance.")
+	if collision_count == 0:
+		warnings.append("No collision shape was imported; add one if this asset participates in gameplay physics.")
+	if not scaled_nodes.is_empty():
+		warnings.append("Non-unit node scales found; verify size against the game's unit convention.")
+	return ResponseFactory.success({"gltf_path": source_path, "mesh_count": mesh_count, "surface_count": surface_count, "material_count": material_count, "collision_shape_count": collision_count, "skeleton_count": skeleton_count, "animation_names": animation_names, "scaled_nodes": scaled_nodes, "orientation_requires_review": true}, "Imported glTF inspected.", warnings, ["Review forward axis, materials and animation playback visually in the game."])
+
+
+func create_gridmap_3d(params: Dictionary) -> Dictionary:
+	var editor_check := _require_editor()
+	if not editor_check.is_empty():
+		return editor_check
+	var scene_root: Node = _require_scene_root()
+	if scene_root == null:
+		return ResponseFactory.error("NO_SCENE_OPEN", "No scene is currently open.", {}, ["Open a scene first."])
+	var undo_check := _require_undo_redo("node.create_gridmap_3d")
+	if not undo_check.is_empty():
+		return undo_check
+	var parent_path: String = str(params.get("parent_path", "."))
+	var parent := _resolve_node(scene_root, parent_path)
+	if parent == null:
+		return ResponseFactory.error("NODE_NOT_FOUND", "GridMap parent not found.", {"parent_path": parent_path}, [])
+	var cell_size: float = float(params.get("cell_size", 2.0))
+	if cell_size < 0.25 or cell_size > 100.0:
+		return ResponseFactory.error("INVALID_PARAMS", "cell_size must be between 0.25 and 100.", {}, [])
+	var library_path: String = str(params.get("mesh_library_path", ""))
+	var library: MeshLibrary
+	if library_path.is_empty():
+		library = MeshLibrary.new()
+		library.create_item(0)
+		library.set_item_name(0, "Block")
+		var block_mesh := BoxMesh.new()
+		block_mesh.size = Vector3.ONE * cell_size
+		library.set_item_mesh(0, block_mesh)
+		var block_shape := BoxShape3D.new()
+		block_shape.size = Vector3.ONE * cell_size
+		library.set_item_shapes(0, [block_shape, Transform3D.IDENTITY])
+	else:
+		if not library_path.begins_with("res://") or library_path.contains("..") or not (library_path.ends_with(".tres") or library_path.ends_with(".res")):
+			return ResponseFactory.error("INVALID_PARAMS", "mesh_library_path must be a project-local .tres or .res path.", {"mesh_library_path": library_path}, [])
+		library = ResourceLoader.load(library_path) as MeshLibrary
+		if library == null:
+			return ResponseFactory.error("MESH_LIBRARY_NOT_FOUND", "Godot could not load a MeshLibrary at the given path.", {"mesh_library_path": library_path}, [])
+	var grid := GridMap.new()
+	grid.name = str(params.get("name", "GridMap3D"))
+	grid.cell_size = Vector3.ONE * cell_size
+	grid.mesh_library = library
+	_undo_service.create_action("Create GridMap3D")
+	_undo_service.add_do_method(self, "_add_child_owned", [parent, grid, scene_root])
+	_undo_service.add_undo_method(self, "_remove_child_if_parent", [parent, grid])
+	_undo_service.commit_action()
+	return ResponseFactory.success({"gridmap_path": str(scene_root.get_path_to(grid)), "cell_size": cell_size, "mesh_library_path": library_path, "item_count": library.get_item_list().size()}, "GridMap3D created with a MeshLibrary.")
+
+
+func get_gridmap_palette(params: Dictionary) -> Dictionary:
+	var editor_check := _require_editor()
+	if not editor_check.is_empty():
+		return editor_check
+	var scene_root: Node = _require_scene_root()
+	if scene_root == null:
+		return ResponseFactory.error("NO_SCENE_OPEN", "No scene is currently open.", {}, [])
+	var grid_path: String = str(params.get("gridmap_path", ""))
+	var grid := _resolve_node(scene_root, grid_path) as GridMap
+	if grid == null or grid.mesh_library == null:
+		return ResponseFactory.error("INVALID_GRIDMAP", "gridmap_path must point to a GridMap with a MeshLibrary.", {"gridmap_path": grid_path}, [])
+	var items: Array[Dictionary] = []
+	for item_id in grid.mesh_library.get_item_list():
+		items.append({"id": item_id, "name": grid.mesh_library.get_item_name(item_id), "has_mesh": grid.mesh_library.get_item_mesh(item_id) != null, "has_collision": not grid.mesh_library.get_item_shapes(item_id).is_empty(), "has_navigation": grid.mesh_library.get_item_navigation_mesh(item_id) != null})
+	return ResponseFactory.success({"gridmap_path": grid_path, "cell_size": {"x": grid.cell_size.x, "y": grid.cell_size.y, "z": grid.cell_size.z}, "items": items}, "GridMap palette loaded.")
+
+
+func paint_gridmap_cells(params: Dictionary) -> Dictionary:
+	var editor_check := _require_editor()
+	if not editor_check.is_empty():
+		return editor_check
+	var scene_root: Node = _require_scene_root()
+	if scene_root == null:
+		return ResponseFactory.error("NO_SCENE_OPEN", "No scene is currently open.", {}, [])
+	var undo_check := _require_undo_redo("node.paint_gridmap_cells")
+	if not undo_check.is_empty():
+		return undo_check
+	var grid_path: String = str(params.get("gridmap_path", ""))
+	var grid := _resolve_node(scene_root, grid_path) as GridMap
+	if grid == null or grid.mesh_library == null:
+		return ResponseFactory.error("INVALID_GRIDMAP", "gridmap_path must point to a GridMap with a MeshLibrary.", {"gridmap_path": grid_path}, [])
+	var cells: Array = params.get("cells", [])
+	if cells.is_empty() or cells.size() > 512:
+		return ResponseFactory.error("INVALID_PARAMS", "Provide between 1 and 512 GridMap cells.", {"count": cells.size()}, [])
+	var valid_items := grid.mesh_library.get_item_list()
+	var seen := {}
+	var updates: Array[Dictionary] = []
+	for cell in cells:
+		if not cell is Dictionary:
+			return ResponseFactory.error("INVALID_PARAMS", "Each cell must be an object.", {}, [])
+		var position := Vector3i(int(cell.get("x", 0)), int(cell.get("y", 0)), int(cell.get("z", 0)))
+		if abs(position.x) > 10000 or abs(position.y) > 10000 or abs(position.z) > 10000:
+			return ResponseFactory.error("INVALID_PARAMS", "GridMap cell coordinates must be within ±10000.", {}, [])
+		var key := str(position)
+		if seen.has(key):
+			return ResponseFactory.error("INVALID_PARAMS", "The same GridMap cell was specified twice.", {"position": key}, [])
+		seen[key] = true
+		var item_id: int = int(cell.get("item", -1))
+		var orientation: int = int(cell.get("orientation", 0))
+		if item_id != GridMap.INVALID_CELL_ITEM and not (item_id in valid_items):
+			return ResponseFactory.error("INVALID_GRIDMAP_ITEM", "Item ID is not present in the MeshLibrary.", {"item": item_id}, [])
+		if orientation < 0 or orientation > 23:
+			return ResponseFactory.error("INVALID_PARAMS", "orientation must be between 0 and 23.", {"orientation": orientation}, [])
+		updates.append({"position": position, "item": item_id, "orientation": orientation, "old_item": grid.get_cell_item(position), "old_orientation": grid.get_cell_item_orientation(position)})
+	_undo_service.create_action("Paint GridMap3D cells")
+	for update in updates:
+		_undo_service.add_do_method(grid, "set_cell_item", [update["position"], update["item"], update["orientation"]])
+		_undo_service.add_undo_method(grid, "set_cell_item", [update["position"], update["old_item"], update["old_orientation"]])
+	_undo_service.commit_action()
+	return ResponseFactory.success({"gridmap_path": grid_path, "cells_changed": updates.size()}, "GridMap cells painted.")
+
+
 # ── Node groups ───────────────────────────────────────────────────────────────
 
 func get_node_groups(params: Dictionary) -> Dictionary:

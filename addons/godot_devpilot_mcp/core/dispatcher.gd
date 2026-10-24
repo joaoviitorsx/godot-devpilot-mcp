@@ -14,7 +14,7 @@ const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tool
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 const BetterTileEditorTools = preload("res://addons/godot_devpilot_mcp/tools/better_tile_editor_tools.gd")
 
-const PLUGIN_VERSION := "2.7.0"
+const PLUGIN_VERSION := "2.8.0"
 const PROTOCOL_VERSION := "1.0.0"
 
 var editor_interface
@@ -144,6 +144,16 @@ func dispatch(request: Variant) -> Dictionary:
 			return Protocol.success_envelope(request_id, _node_tools.set_node_property(params))
 		"node.assign_3d_resource":
 			return Protocol.success_envelope(request_id, _node_tools.assign_3d_resource(params))
+		"node.bake_navigation_mesh_3d":
+			return Protocol.success_envelope(request_id, _node_tools.bake_navigation_mesh_3d(params))
+		"node.audit_gltf_import":
+			return Protocol.success_envelope(request_id, _node_tools.audit_gltf_import(params))
+		"node.create_gridmap_3d":
+			return Protocol.success_envelope(request_id, _node_tools.create_gridmap_3d(params))
+		"node.get_gridmap_palette":
+			return Protocol.success_envelope(request_id, _node_tools.get_gridmap_palette(params))
+		"node.paint_gridmap_cells":
+			return Protocol.success_envelope(request_id, _node_tools.paint_gridmap_cells(params))
 		"node.get_groups":
 			return Protocol.success_envelope(request_id, _node_tools.get_node_groups(params))
 		"node.add_to_group":

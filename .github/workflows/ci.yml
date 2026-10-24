@@ -71,3 +71,53 @@ jobs:
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then cat /tmp/godot-editor.log; exit 1; fi
+
+  godot-43-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+      - name: Build MCP server
+        working-directory: mcp-server
+        run: |
+          npm ci
+          npm run build
+      - name: Download official Godot 4.3 editor
+        run: |
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o /tmp/godot-43.zip
+          unzip -q /tmp/godot-43.zip -d /tmp
+          chmod +x /tmp/Godot_v4.3-stable_linux.x86_64
+      - name: Verify 3D toolkit and navigation baking on Godot 4.3
+        run: node scripts/smoke-3d-toolkit.mjs /tmp/Godot_v4.3-stable_linux.x86_64
+
+  windows-godot:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+      - name: Build MCP server
+        working-directory: mcp-server
+        run: |
+          npm ci
+          npm run build
+      - name: Download official Godot 4.6.3 editor
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable/Godot_v4.6.3-stable_win64.exe.zip -OutFile "$env:RUNNER_TEMP\godot.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\godot.zip" -DestinationPath "$env:RUNNER_TEMP\godot" -Force
+      - name: Verify 3D starter and editor toolkit on Windows
+        shell: pwsh
+        run: |
+          $godot = Join-Path $env:RUNNER_TEMP 'godot\Godot_v4.6.3-stable_win64_console.exe'
+          node scripts/smoke-3d-starter.mjs $godot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-3d-toolkit.mjs $godot
+          exit $LASTEXITCODE

@@ -156,7 +156,7 @@ function installRuntime(projectRoot) {
   const installedLock = path.join(destination, "package-lock.json");
   const runtimeDependencies = ["@modelcontextprotocol/sdk", "pngjs", "ws", "zod"];
   if (existsSync(destination) && lstatSync(destination).isSymbolicLink()) throw new Error(`Refusing to replace symlink: ${destination}`);
-  if (existsSync(path.join(destination, ".gdignore")) && runtimeDependencies.every((dependency) => existsSync(path.join(destination, "node_modules", ...dependency.split("/")))) && sameFileContents(sourceLock, installedLock) && sameDirectoryContents(path.join(serverRoot, "dist"), path.join(destination, "dist"))) {
+  if (existsSync(path.join(destination, ".gdignore")) && sameFileContents(path.join(repositoryRoot, "scripts", "doctor.mjs"), path.join(destination, "doctor.mjs")) && runtimeDependencies.every((dependency) => existsSync(path.join(destination, "node_modules", ...dependency.split("/")))) && sameFileContents(sourceLock, installedLock) && sameDirectoryContents(path.join(serverRoot, "dist"), path.join(destination, "dist"))) {
     console.log(`MCP runtime: ${destination} (already current)`);
     return path.join(destination, "dist", "index.js");
   }
@@ -166,6 +166,7 @@ function installRuntime(projectRoot) {
   try {
     copyFileSync(path.join(serverRoot, "package.json"), path.join(stage, "package.json"));
     copyFileSync(sourceLock, path.join(stage, "package-lock.json"));
+    copyFileSync(path.join(repositoryRoot, "scripts", "doctor.mjs"), path.join(stage, "doctor.mjs"));
     cpSync(path.join(serverRoot, "dist"), path.join(stage, "dist"), { recursive: true });
     // Godot should not scan Node modules and generated JavaScript as game assets.
     writeFileSync(path.join(stage, ".gdignore"), "");
@@ -335,7 +336,8 @@ function main() {
   if (options.client === "codex" || options.client === "both") configureCodex(projectRoot, name, environment, runtimeEntry);
   if (claudeConfig) writeAiGuidance(projectRoot, "CLAUDE.md", name);
   if (options.client === "codex" || options.client === "both") writeAiGuidance(projectRoot, "AGENTS.md", name);
-  console.log("Ready. Open this project in Godot and start a new Claude Code or Codex session here. Ask: 'Use GodoPilot to inspect this game.'");
+  console.log("Ready. Open this project in Godot, then run: node .godot_mcp/runtime/doctor.mjs");
+  console.log("Start a new Claude Code or Codex session here and ask: 'Use GodoPilot to inspect this game.'");
 }
 
 try { main(); }

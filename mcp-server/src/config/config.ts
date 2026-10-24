@@ -84,7 +84,7 @@ export function loadConfig(env: Env = process.env): ServerConfig {
   return {
     server: {
       name: "godot-devpilot-mcp",
-      version: "2.7.0",
+      version: "2.8.0",
       protocolVersion: "1.0.0"
     },
     godot: {

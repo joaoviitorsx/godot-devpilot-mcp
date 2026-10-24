@@ -26,7 +26,7 @@ O bootstrap usa `npm exec` para obter o pacote do GitHub. O instalador detecta C
 
 O padrão do comando curto é **leitura e escrita** com modo `full`, para que a IA possa usar também as ferramentas especializadas. Use `--read-only` se quiser apenas inspeção; `--mode core` reduz o catálogo e `--mode agentic` inclui orquestradores. O script direto `godopilot` também aceita `--dry-run`, `--client claude|codex|both|none` e `--force`. Repetir a instalação com a mesma versão é seguro. Na atualização, o runtime antigo e o addon alterado são preservados em `.godot_mcp/install-backups/`; a primeira ativação do plugin também guarda uma cópia de `project.godot`. Outros plugins habilitados e entradas existentes em `.mcp.json` são preservados. Se `enabled` em `[editor_plugins]` tiver formato desconhecido, o instalador avisa que a ativação deve ser feita no editor.
 
-Depois, abra o **projeto do jogo** no Godot. No painel Output deve aparecer a porta do WebSocket. O editor gera um token local em `.godot_mcp/bridge-token`, atualizado ao reiniciar o plugin; o instalador adiciona esse arquivo ao `.gitignore` do jogo. Reinicie o cliente de IA ou atualize a lista de servidores e execute `godot_health_check`, depois `devpilot_game_context`. Se a conexão falhar, confira `Project → Project Settings → Plugins` e a saída do editor.
+Depois, abra o **projeto do jogo** no Godot. No painel Output deve aparecer a porta do WebSocket. O editor gera um token local em `.godot_mcp/bridge-token`, atualizado ao reiniciar o plugin; o instalador adiciona esse arquivo ao `.gitignore` do jogo. Ainda na pasta do jogo, execute `node .godot_mcp/runtime/doctor.mjs` para verificar runtime, addon, cliente de IA, token e conexão autenticada com o projeto correto. O comando `godopilot doctor` faz a mesma verificação quando o pacote estiver no PATH; `--offline` verifica apenas a instalação, sem exigir o editor aberto, e `--json` produz um relatório para automação. Reinicie o cliente de IA ou atualize a lista de servidores e execute `godot_health_check`, depois `devpilot_game_context`. Se a conexão falhar, confira `Project → Project Settings → Plugins` e a saída do editor.
 
 Primeiro pedido útil à IA: “Leia `devpilot_game_context`, explique a cena principal e implemente uma pequena funcionalidade jogável. Defina critérios observáveis, valide os arquivos e execute um teste.” O MCP fornece os prompts `devpilot_feature_loop`, `devpilot_playtest_loop` e `devpilot_tile_workflow`; o cliente pode também ler o recurso `godot://project/context`. O modo `full` expõe as ferramentas especializadas, mas o acesso depende dos métodos implementados pela ponte do editor e dos addons opcionais instalados no jogo; ele não representa toda a API interna do Godot. Veja o [fluxo de desenvolvimento com IA](ai_game_development_roadmap.md).
 
@@ -76,6 +76,8 @@ Para Claude Desktop, copie essa entrada `mcpServers` para a configuração MCP d
 --help             mostra a ajuda
 ```
 
+Para diagnosticar a instalação após a cópia, use `node .godot_mcp/runtime/doctor.mjs [--offline] [--json]` dentro do projeto. Um resultado com verificações reprovadas retorna código de saída 1.
+
 ## Instalação manual
 
 Se preferir configurar sem o instalador:
@@ -89,7 +91,7 @@ Variáveis opcionais: `GODOT_MCP_HOST` (padrão `127.0.0.1`), `GODOT_MCP_PORT` (
 
 ## Pacote de distribuição
 
-O pacote npm é gerado por `npm pack` e contém o comando `godopilot`. Para testar localmente antes da publicação, execute `npm pack --pack-destination release` neste repositório; dentro do jogo, rode `npm exec --yes --package="/caminho/para/release/godopilot-mcp-2.7.0.tgz" -- godopilot`. O pacote não requer checkout Git no computador do jogador. A publicação no registro npm permitiria `npx godopilot-mcp` no futuro; **este nome ainda não foi publicado**.
+O pacote npm é gerado por `npm pack` e contém o comando `godopilot`. Para testar localmente antes da publicação, execute `npm pack --pack-destination release` neste repositório; dentro do jogo, rode `npm exec --yes --package="/caminho/para/release/godopilot-mcp-2.8.0.tgz" -- godopilot`. O pacote não requer checkout Git no computador do jogador. A publicação no registro npm permitiria `npx godopilot-mcp` no futuro; **este nome ainda não foi publicado**.
 
 O arquivo de release tradicional continua disponível: `node scripts/package-release.mjs` produz `release/godot-devpilot-mcp-v<versão>.tar.gz` com SHA-256. Após extrair, execute `node /caminho/da/extracao/bin/godopilot.mjs` dentro da pasta do jogo.
 

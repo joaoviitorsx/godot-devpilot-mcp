@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync(path.join(root, "mcp-server", "package.json"
 const name = `godot-devpilot-mcp-v${pkg.version}.tar.gz`;
 const output = path.join(root, "release", name);
 const included = [
-  "addons/godot_devpilot_mcp", "scripts/install.mjs", "bin/godopilot.mjs", "install.sh", "install.ps1", "package.json", "mcp-server/src", "mcp-server/dist",
+  "addons/godot_devpilot_mcp", "scripts/install.mjs", "scripts/doctor.mjs", "bin/godopilot.mjs", "install.sh", "install.ps1", "package.json", "mcp-server/src", "mcp-server/dist",
   "mcp-server/scripts", "mcp-server/package.json", "mcp-server/package-lock.json", "mcp-server/tsconfig.json",
   "evals/runner.js", "evals/cases", "evals/README.md",
   "README.md", "docs/installation.md", "docs/ai_game_development_roadmap.md", "docs/api_reference.md",

@@ -39,10 +39,14 @@ test("installs addon and merges Claude config without losing another server", ()
     assert.match(readFileSync(path.join(root, ".gitignore"), "utf8"), /\/\.godot_mcp\/runtime\//);
     assert.ok(existsSync(entry.args[0]));
     assert.equal(readFileSync(path.join(root, ".godot_mcp", "runtime", ".gdignore"), "utf8"), "");
+    assert.ok(existsSync(path.join(root, ".godot_mcp", "runtime", "doctor.mjs")));
     const instructions = readFileSync(path.join(root, "CLAUDE.md"), "utf8");
     assert.match(instructions, /Preserve meus arquivos/);
     assert.match(instructions, /devpilot_game_context/);
     assert.match(readFileSync(path.join(root, "project.godot"), "utf8"), /enabled=PackedStringArray\("res:\/\/addons\/godot_devpilot_mcp\/plugin.cfg"\)/);
+    const doctor = spawnSync(process.execPath, [cli, "doctor", "--offline", "--json"], { encoding: "utf8", cwd: root });
+    assert.equal(doctor.status, 0, doctor.stderr + doctor.stdout);
+    assert.equal(JSON.parse(doctor.stdout).passed, true);
     const repeat = spawnSync(process.execPath, [cli, "--skip-build", "--client", "claude"], { encoding: "utf8", cwd: root });
     assert.equal(repeat.status, 0, repeat.stderr);
     assert.match(repeat.stdout, /already current/);

@@ -31,7 +31,7 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 16 | Release prep (CHANGELOG, demos) | ✅ |
 | 2.x | Prompt-first workflows, genre blueprints, blueprint library, snapshots, CI | ✅ |
 
-**Version:** 2.7.0 — see `CHANGELOG.md`.
+**Version:** 2.8.0 — see `CHANGELOG.md`.
 **Build:** clean (`npm run build`).  
 **Tests:** run `npm test` in `mcp-server/` for the current count.
 **Tools registered:** varies by `minimal`, `core`, `full`, and `agentic`; `godot_get_capabilities` returns the exact active list.
@@ -55,7 +55,7 @@ Plugin: `addons/godot_devpilot_mcp/` (GDScript, EditorPlugin).
 
 ## Quick start
 
-Requirements: Godot 4.3+, Node.js 22.12+ with npm, and Claude Code or Codex CLI. Open a terminal **inside your game project** (the directory containing `project.godot`). After these installer files are published on the `main` branch, run:
+Requirements: Godot 4.3+, Node.js 22.12+ with npm, and Claude Code or Codex CLI. Open a terminal **inside your game project** (the directory containing `project.godot`) and run:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.sh | sh
@@ -69,7 +69,7 @@ irm https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/insta
 
 The installer detects Claude Code and/or Codex CLI, installs a stable MCP runtime under `.godot_mcp/runtime/`, copies and enables the Godot plugin, configures the detected clients, and adds short guidance to `CLAUDE.md` and/or `AGENTS.md` without removing existing instructions. It defaults to read-write with the `full` tool set. For a local checkout before publication, run `node /absolute/path/to/godot-devpilot-mcp/bin/godopilot.mjs` from your game project. Use `--read-only`, `--mode core`, `--client codex`, or `--dry-run` when needed.
 
-Open your game in Godot and start a new AI session in that directory. Ask *"Use GodoPilot to inspect this game."* The AI can then call `godot_health_check` and `devpilot_game_context`. The editor and MCP server use local WebSocket port 6505 by default.
+Open your game in Godot, then run `node .godot_mcp/runtime/doctor.mjs` from the game directory to check the installation and authenticated editor connection. Start a new AI session there and ask *"Use GodoPilot to inspect this game."* The AI can then call `godot_health_check` and `devpilot_game_context`. The editor and MCP server use local WebSocket port 6505 by default.
 
 Detailed steps, manual configuration, updates, and troubleshooting: [installation guide](docs/installation.md). This repository's `project.godot` is a plugin development sandbox saved with Godot 4.6.
 
@@ -81,7 +81,9 @@ Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) 
 
 To start a 3D game, ask the AI to call `devpilot_create_3d_starter` with `mode="fps"` or `mode="tps"` (available in `full` and `agentic`). It creates a playable arena and controller in one call. If your project already has a main scene, it keeps it and you can play the generated scene with F6. Use `dry_run=true` to preview the files. See the [3D workflow](docs/ai_game_development_roadmap.md#trilha-específica-para-jogos-3d).
 
-For an existing 3D scene, `godot_create_character_body_3d`, `godot_create_primitive_mesh`, `godot_setup_lighting`, and `godot_create_navigation_region_3d` now assign their resources directly in the editor. `godot_import_gltf` instances an already imported `.gltf` or `.glb` scene. The navigation region starts with a flat rectangle; bake from level geometry for obstacles and uneven terrain.
+For an existing 3D scene, `godot_create_character_body_3d`, `godot_create_primitive_mesh`, `godot_setup_lighting`, and `godot_create_navigation_region_3d` assign resources directly in the editor. `godot_import_gltf` instances an already imported `.gltf` or `.glb` scene; `godot_audit_gltf` inspects its meshes, materials, animations, collision and node scales. The navigation region starts with a flat rectangle; `godot_bake_navigation_mesh_3d` replaces it with an undoable mesh baked from level meshes and static colliders. The tool reports the polygon count and rejects an empty bake.
+
+For modular 3D levels, `godot_create_gridmap_3d` accepts an existing MeshLibrary or creates a collidable Block palette. `godot_get_gridmap_palette` lists valid item IDs; `godot_paint_gridmap_cells` places or erases up to 512 cells in one undoable action.
 
 First prompt to try: *"Call `devpilot_game_context`, tell me the main scene and the next playable feature, then use `devpilot_feature_loop` to implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md) and `docs/cookbook.md`.
 

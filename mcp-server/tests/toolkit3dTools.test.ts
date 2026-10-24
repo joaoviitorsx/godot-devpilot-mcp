@@ -235,6 +235,19 @@ describe("toolkit3d — orchestration", () => {
     ]);
   });
 
+  it("bakes a navigation region from the chosen geometry subtree", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot();
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
+    const r = parse(await server.run("godot_bake_navigation_mesh_3d", { region_path: "NavigationRegion3D", source_root_path: "Level", agent_radius: 0.6 }) as { content: Array<{ text: string }> });
+    expect(r.ok).toBe(true);
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "node.bake_navigation_mesh_3d",
+      { region_path: "NavigationRegion3D", source_root_path: "Level", agent_radius: 0.6, cell_size: 0.25 }
+    ]);
+  });
+
   it("create_raycast_3d sets target_position and enabled", async () => {
     const root = await makeRoot();
     const godot = makeGodot();
@@ -285,6 +298,43 @@ describe("toolkit3d — orchestration", () => {
     ]);
   });
 
+  it("audits an existing glTF import in read-only mode", async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, "models"));
+    await writeFile(path.join(root, "models", "scene.gltf"), '{"asset":{"version":"2.0"}}');
+    const godot = makeGodot();
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(true, root) as never);
+    const result = parse(await server.run("godot_audit_gltf", { gltf_path: "res://models/scene.gltf" }) as { content: Array<{ text: string }> });
+    expect(result.ok).toBe(true);
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      "node.audit_gltf_import", { gltf_path: "res://models/scene.gltf" }
+    ]);
+  });
+
+  it("creates a GridMap, reads its palette, and paints cells through the editor", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot();
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
+    expect(parse(await server.run("godot_create_gridmap_3d", { cell_size: 2 }) as { content: Array<{ text: string }> }).ok).toBe(true);
+    expect(parse(await server.run("godot_get_gridmap_palette", { gridmap_path: "GridMap3D" }) as { content: Array<{ text: string }> }).ok).toBe(true);
+    expect(parse(await server.run("godot_paint_gridmap_cells", { gridmap_path: "GridMap3D", cells: [{ x: 0, y: 0, z: 0, item: 0 }] }) as { content: Array<{ text: string }> }).ok).toBe(true);
+    const methods = (godot.call as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(methods).toContain("node.create_gridmap_3d");
+    expect(methods).toContain("node.get_gridmap_palette");
+    expect(methods).toContain("node.paint_gridmap_cells");
+  });
+
+  it("keeps palette inspection available in read-only mode and blocks painting", async () => {
+    const root = await makeRoot();
+    const server = makeServer();
+    registerToolkit3dTools(server as never, makeGodot(), makeConfig(true, root) as never);
+    expect(parse(await server.run("godot_get_gridmap_palette", { gridmap_path: "GridMap3D" }) as { content: Array<{ text: string }> }).ok).toBe(true);
+    const painting = parse(await server.run("godot_paint_gridmap_cells", { gridmap_path: "GridMap3D", cells: [{ x: 0, y: 0, z: 0, item: 0 }] }) as { content: Array<{ text: string }> });
+    expect(painting.error.code).toBe("READ_ONLY_MODE");
+  });
+
   it("create_primitive_mesh adds MeshInstance3D and reports suggestion", async () => {
     const root = await makeRoot();
     const godot = makeGodot();
@@ -301,5 +351,36 @@ describe("toolkit3d — orchestration", () => {
       "node.assign_3d_resource",
       { node_path: "Sphere", property: "mesh", resource_type: "SphereMesh" }
     ]);
+  });
+
+  it("removes a newly added mesh when resource assignment fails", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot();
+    (godot.call as ReturnType<typeof vi.fn>).mockImplementation(async (method: string, params: Record<string, string>) => method === "node.assign_3d_resource"
+      ? { ok: false, error: { code: "ASSIGN_FAILED", message: "failed", details: {}, suggestions: [] } }
+      : { ok: true, data: method === "node.add" ? { path: params.node_name } : {}, message: "ok", warnings: [], suggestions: [] });
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_create_primitive_mesh", {}) as { content: Array<{ text: string }> });
+    expect(result.error.code).toBe("ASSIGN_FAILED");
+    expect(result.error.details.rollback.completed).toBe(true);
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(["node.remove", { node_path: "Mesh" }]);
+  });
+
+  it("restores the player script and removes the body if attachment fails", async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, "scripts"));
+    await writeFile(path.join(root, "scripts", "Player3D.gd"), "original script");
+    const godot = makeGodot();
+    (godot.call as ReturnType<typeof vi.fn>).mockImplementation(async (method: string, params: Record<string, string>) => method === "script.attach"
+      ? { ok: false, error: { code: "ATTACH_FAILED", message: "failed", details: {}, suggestions: [] } }
+      : { ok: true, data: method === "node.add" ? { path: params.parent_path === "." ? params.node_name : `${params.parent_path}/${params.node_name}` } : {}, message: "ok", warnings: [], suggestions: [] });
+    const server = makeServer();
+    registerToolkit3dTools(server as never, godot, makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_create_character_body_3d", { overwrite_script: true }) as { content: Array<{ text: string }> });
+    expect(result.error.code).toBe("ATTACH_FAILED");
+    expect(result.error.details.rollback.completed).toBe(true);
+    expect(await readFile(path.join(root, "scripts", "Player3D.gd"), "utf8")).toBe("original script");
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(["node.remove", { node_path: "Player" }]);
   });
 });

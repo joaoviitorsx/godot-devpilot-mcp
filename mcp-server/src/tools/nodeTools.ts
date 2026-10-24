@@ -37,7 +37,7 @@ export function registerNodeTools(server: McpServer, godot: GodotClient, config:
       node_name: z.string().optional().describe("Name for the new node (defaults to node_type)."),
       name: z.string().optional().describe("Alias for node_name."),
       parent_path: z.string().optional().describe("NodePath of the parent relative to scene root (default: '.' = root)."),
-      properties: z.record(z.unknown()).optional().describe("Initial properties to set on the new node."),
+      properties: z.record(z.string(), z.unknown()).optional().describe("Initial properties to set on the new node."),
       dry_run: z.boolean().optional().describe("Preview without modifying the scene.")
     },
     async ({ node_type, type, node_name, name, parent_path, properties, dry_run }) => {

@@ -9,6 +9,8 @@ import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, type ToolResponse } from "../godot/protocol.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
 import { lintGDScript } from "../utils/gdscriptLint.js";
+import { resolveProjectPath } from "../safety/pathGuard.js";
+import { callLocalTool } from "./localTool.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -22,18 +24,10 @@ async function fileExists(p: string): Promise<boolean> {
   try { await access(p); return true; } catch { return false; }
 }
 
-function resToAbs(projectRoot: string, resPath: string): string {
-  return path.join(projectRoot, resPath.replace(/^res:\/\//, ""));
-}
-
 type ParseError = { path?: string; file?: string; line?: number; message?: string };
 
-async function getParseErrorsFromGodot(godot: GodotClient): Promise<ParseError[]> {
-  if (!godot.getStatus().connected) {
-    const c = await godot.connect();
-    if (!c.ok) return [];
-  }
-  const r = await godot.call("static.get_script_parse_errors", {});
+async function getParseErrors(server: McpServer): Promise<ParseError[]> {
+  const r = await callLocalTool(server, "godot_get_script_parse_errors", { include_warnings: false });
   if (!r.ok) return [];
   const data = r.data as { parse_errors?: unknown[] };
   if (!Array.isArray(data?.parse_errors)) return [];
@@ -68,7 +62,9 @@ async function relintScripts(projectRoot: string, paths: string[]): Promise<{ fi
   for (const p of paths) {
     if (seen.has(p)) continue;
     seen.add(p);
-    const abs = resToAbs(projectRoot, p);
+    let abs: string;
+    try { abs = resolveProjectPath(p, projectRoot).absolutePath; }
+    catch (error) { warnings.push(`${p}: ${error instanceof Error ? error.message : String(error)}`); continue; }
     if (!(await fileExists(abs))) continue;
     try {
       const original = await readFile(abs, "utf8");
@@ -92,7 +88,7 @@ async function relintScripts(projectRoot: string, paths: string[]): Promise<{ fi
 export function registerAutoFixTools(server: McpServer, godot: GodotClient, config: ServerConfig): void {
   server.tool(
     "devpilot_auto_fix_parse_errors",
-    "Heuristic auto-fix loop: queries Godot for parse errors, applies known fixes (gdscriptLint on affected scripts, * prefix on disabled autoloads in project.godot), and re-checks. Returns lists of fixed files + remaining errors.",
+    "Heuristic auto-fix loop: scans project scripts for known parse errors, applies known fixes (gdscriptLint on affected scripts, * prefix on disabled autoloads in project.godot), and re-checks. Returns lists of fixed files + remaining errors.",
     {
       max_iterations: z.number().int().positive().max(5).optional().default(3),
       additional_paths: z.array(z.string()).optional().describe("Extra res:// paths to lint regardless of detected errors."),
@@ -109,7 +105,7 @@ export function registerAutoFixTools(server: McpServer, godot: GodotClient, conf
           let lastErrorCount = -1;
 
           for (let i = 0; i < params.max_iterations; i++) {
-            const errors = await getParseErrorsFromGodot(godot);
+            const errors = await getParseErrors(server);
             const errorPaths = errors
               .map((e) => e.path ?? e.file ?? "")
               .filter((s) => typeof s === "string" && s.length > 0);
@@ -136,7 +132,7 @@ export function registerAutoFixTools(server: McpServer, godot: GodotClient, conf
               allFixed.push(...al);
             }
 
-            const after = await getParseErrorsFromGodot(godot);
+            const after = await getParseErrors(server);
             if (after.length === 0) {
               lastErrorCount = 0;
               break;

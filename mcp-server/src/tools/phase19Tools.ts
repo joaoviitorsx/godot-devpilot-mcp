@@ -6,6 +6,7 @@ import type { GodotClient } from "../godot/client.js";
 import { createErrorResponse, createSuccessResponse, type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely, type ToolExecutionContext } from "../safety/toolWrapper.js";
+import { resolveProjectPath } from "../safety/pathGuard.js";
 
 function toMcpResult(response: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }], isError: !response.ok };
@@ -78,6 +79,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     },
     async (params) => {
       const result = await executeToolSafely(ctx("godot_read_resource", config), async (): Promise<ToolResponse> => {
+        resolveProjectPath(params.path, config.projectRoot);
         return callAfterConnect(godot, "resource.read", params);
       });
       return toMcpResult(result);
@@ -96,6 +98,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     },
     async (params) => {
       const result = await executeToolSafely(ctx("godot_edit_resource", config), async (): Promise<ToolResponse> => {
+        resolveProjectPath(params.path, config.projectRoot);
         if (params.dry_run) {
           return createDryRunResponse({
             toolName: "godot_edit_resource",
@@ -117,12 +120,13 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     {
       path: z.string().describe("res:// output path (must end in .tres)."),
       resource_type: z.string().describe("ClassDB resource type e.g. 'Environment', 'PhysicsMaterial', 'AudioStreamWAV'."),
-      properties: z.record(z.unknown()).optional().describe("Initial property values."),
+      properties: z.record(z.string(), z.unknown()).optional().describe("Initial property values."),
       overwrite: z.boolean().optional(),
       dry_run: z.boolean().optional()
     },
     async (params) => {
       const result = await executeToolSafely(ctx("godot_create_resource", config), async (): Promise<ToolResponse> => {
+        resolveProjectPath(params.path, config.projectRoot);
         if (params.dry_run) {
           return createDryRunResponse({
             toolName: "godot_create_resource",

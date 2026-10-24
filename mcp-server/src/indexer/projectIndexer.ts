@@ -211,8 +211,8 @@ export function checkConventions(files: ProjectFile[]): ConventionViolation[] {
     const baseName = f.res_path.split("/").pop() ?? "";
     const stem = baseName.replace(/\.[^.]+$/, "");
 
-    if (f.kind === "scene" && !/^[A-Z][A-Za-z0-9]*$/.test(stem)) {
-      violations.push({ res_path: f.res_path, rule: "scene_pascal_case", message: "Scene file should use PascalCase." });
+    if (f.kind === "scene" && !/^(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)*|[A-Z][A-Za-z0-9]*)$/.test(stem)) {
+      violations.push({ res_path: f.res_path, rule: "scene_naming", message: "Scene file should use snake_case (Godot recommendation) or PascalCase (legacy projects)." });
     }
     if (f.kind === "script" && !/^[A-Z][A-Za-z0-9_]*$/.test(stem) && !/^_?[a-z][a-z0-9_]*$/.test(stem)) {
       violations.push({ res_path: f.res_path, rule: "script_naming", message: "Script file should be PascalCase (class) or snake_case (helper)." });

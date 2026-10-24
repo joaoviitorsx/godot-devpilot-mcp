@@ -46,6 +46,29 @@ describe("qualityTools", () => {
     expect(parse(r).data.total_scenes).toBe(1);
     expect(parse(r).data.node_types.Node2D).toBe(1);
   });
+
+  it("headless run reports a failed process as a tool error", async () => {
+    const root = await makeTmpProject();
+    const server = makeServer();
+    registerQualityTools(server as never, makeConfig(root));
+    const result = parse(await server.run("devpilot_run_headless", { seconds: 1, godot_bin: process.execPath }));
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe("HEADLESS_RUNTIME_ERRORS");
+    expect(result.error.details.exit_code).not.toBe(0);
+  });
+
+  it("GUT runner requires the addon and confines the test path", async () => {
+    const root = await makeTmpProject();
+    const server = makeServer();
+    registerQualityTools(server as never, makeConfig(root));
+    const missing = parse(await server.run("devpilot_run_gut_tests", {}));
+    expect(missing.error.code).toBe("GUT_NOT_INSTALLED");
+    await mkdir(path.join(root, "addons", "gut"), { recursive: true });
+    await writeFile(path.join(root, "addons", "gut", "gut_cmdln.gd"), "extends SceneTree\n");
+    const traversal = parse(await server.run("devpilot_run_gut_tests", { test_path: "res://../outside" }));
+    expect(traversal.ok).toBe(false);
+    expect(traversal.error.code).toBe("PATH_OUTSIDE_PROJECT");
+  });
 });
 
 describe("ciTools", () => {

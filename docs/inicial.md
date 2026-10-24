@@ -987,7 +987,7 @@ Algumas ações devem exigir confirmação ou estar bloqueadas por padrão:
 ## 9.1 Requisitos
 
 - Godot 4.2 ou superior;
-- Node.js 18 ou superior;
+- Node.js 22.12 ou superior;
 - npm ou pnpm;
 - Cliente MCP compatível;
 - Sistema operacional Windows, Linux ou macOS.

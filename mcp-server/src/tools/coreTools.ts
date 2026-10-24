@@ -42,10 +42,11 @@ async function callAfterConnect(godot: GodotClient, method: string, params: unkn
 export function buildCapabilitiesPayload(
   config: ServerConfig,
   status: GodotConnectionStatus,
-  pluginCapabilities: unknown | null = null
+  pluginCapabilities: unknown | null = null,
+  registeredTools?: readonly string[]
 ): CapabilitiesPayload {
   return {
-    ...getModeCapabilities(config.mode),
+    ...getModeCapabilities(config.mode, registeredTools),
     connection: status,
     server_version: config.server.version,
     protocol_version: config.server.protocolVersion,
@@ -95,7 +96,7 @@ export function registerCoreTools(server: McpServer, godot: GodotClient, config:
 
       return toMcpResult(
         createSuccessResponse(
-          buildCapabilitiesPayload(config, godot.getStatus(), pluginCapabilities),
+          buildCapabilitiesPayload(config, godot.getStatus(), pluginCapabilities, Object.keys((server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools)),
           "Capabilities loaded successfully."
         )
       );

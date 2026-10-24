@@ -1,4 +1,4 @@
-# Godot DevPilot MCP
+# GodoPilot — Godot DevPilot MCP
 
 Open source MCP integration for **Godot 4.3+**. Exposes a local TypeScript MCP server that talks to a Godot editor plugin via WebSocket / JSON-RPC 2.0.
 
@@ -23,6 +23,7 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 10 | Project memory (`.godot_mcp/memory/`) | ✅ |
 | 11 | Toolkits 2D (player, enemy, hud, parallax, …) | ✅ |
 | 12 | Toolkits 3D (camera, character, lighting, raycast, …) | ✅ |
+| 12+ | Auditoria de cenas 3D (colisão, mesh, navegação, ambiente, câmera) e prompt de fatia jogável | ✅ |
 | 13 | Specialized toolkits (Physics/Animation/Audio/Particles/Shader/Navigation) | ✅ |
 | 14 | Test scenarios + assertions + stress test | ✅ |
 | 15 | Agentic orchestrators (build_feature, refactor, validation loop) | ✅ |
@@ -31,8 +32,8 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 
 **Version:** 2.6.0 — see `CHANGELOG.md`.  
 **Build:** clean (`npm run build`).  
-**Tests:** 417 / 417 passing across 39 files.  
-**Tools registered:** 377 MCP tools (232 `godot_*` + 145 `devpilot_*`).
+**Tests:** run `npm test` in `mcp-server/` for the current count.
+**Tools registered:** varies by `minimal`, `core`, `full`, and `agentic`; `godot_get_capabilities` returns the exact active list.
 
 ---
 
@@ -46,60 +47,38 @@ AI Client
                     └─> Godot editor / runtime
 ```
 
-Server: `mcp-server/` (Node 18+, TypeScript).  
+Server: `mcp-server/` (Node 22.12+, TypeScript).
 Plugin: `addons/godot_devpilot_mcp/` (GDScript, EditorPlugin).
 
 ---
 
 ## Quick start
 
-### 1. Install + build
+Requirements: Godot 4.3+, Node.js 22.12+ with npm, and Claude Code or Codex CLI. Open a terminal **inside your game project** (the directory containing `project.godot`). After these installer files are published on the `main` branch, run:
 
-```bash
-cd mcp-server
-npm install
-npm run build
-npm test
+```sh
+curl -fsSL https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.sh | sh
 ```
 
-### 2. Open Godot project + activate plugin
+On Windows PowerShell, use:
 
-```bash
-godot --editor --path .
+```powershell
+irm https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.ps1 | iex
 ```
 
-In the editor: `Project → Project Settings → Plugins → Godot DevPilot MCP → Enable`.
+The installer detects Claude Code and/or Codex CLI, installs a stable MCP runtime under `.godot_mcp/runtime/`, copies and enables the Godot plugin, configures the detected clients, and adds short guidance to `CLAUDE.md` and/or `AGENTS.md` without removing existing instructions. It defaults to read-write with the `full` tool set. For a local checkout before publication, run `node /absolute/path/to/godot-devpilot-mcp/bin/godopilot.mjs` from your game project. Use `--read-only`, `--mode core`, `--client codex`, or `--dry-run` when needed.
 
-Console should print: `[Godot DevPilot MCP] WebSocket listening on 127.0.0.1:6505`.
+Open your game in Godot and start a new AI session in that directory. Ask *"Use GodoPilot to inspect this game."* The AI can then call `godot_health_check` and `devpilot_game_context`. The editor and MCP server use local WebSocket port 6505 by default.
 
-### 3. Configure MCP client
+Detailed steps, manual configuration, updates, and troubleshooting: [installation guide](docs/installation.md). This repository's `project.godot` is a plugin development sandbox saved with Godot 4.6.
 
-Add to your client config (Claude Desktop / Claude Code / etc.):
+For maintainers: [Graphify setup](docs/graphify.md) and [review plan](docs/review_plan.md).
 
-```json
-{
-  "mcpServers": {
-    "godot-devpilot": {
-      "command": "node",
-      "args": ["/absolute/path/to/godot-devpilot-mcp/mcp-server/dist/index.js"],
-      "env": {
-        "GODOT_MCP_READ_ONLY": "false",
-        "GODOT_MCP_PROJECT_ROOT": "/absolute/path/to/godot-devpilot-mcp"
-      }
-    }
-  }
-}
-```
+Product naming proposal: [GodoPilot](docs/branding.md).
 
-### 4. Use in your own Godot project
+Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) (optional, Godot 4.6+).
 
-Copy `addons/godot_devpilot_mcp/` into your project's `addons/` folder, enable the plugin there, and point `GODOT_MCP_PROJECT_ROOT` at your project. The MCP server can live anywhere — only `args` needs its absolute path.
-
-> This repository's own `project.godot` (the plugin dev sandbox) is saved with Godot 4.6.
-
-First prompt to try: *"Run `devpilot_init_wizard` and then `devpilot_help`."* Prompt templates: `docs/cookbook.md`, `docs/AI_USAGE_GUIDE.md`.
-
-> **Security:** `GODOT_MCP_PROJECT_ROOT` must point to a directory containing `project.godot`. The server validates this on startup and refuses to launch otherwise (prevents accidental exposure of `$HOME` files via `res://` shortcuts).
+First prompt to try: *"Call `devpilot_game_context`, tell me the main scene and the next playable feature, then use `devpilot_feature_loop` to implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md) and `docs/cookbook.md`.
 
 ---
 
@@ -120,6 +99,9 @@ Phase 12  Toolkit 3D        godot_create_character_body_3d, godot_setup_lighting
 Phase 13  Specialized       godot_setup_physics_body, godot_create_animation_player, godot_create_shader, …
 Phase 14  Testing           godot_assert_property_equals, godot_run_test_scenario, godot_stress_test_scene
 Phase 15  Agentic           godot_build_feature, godot_refactor_safely, godot_run_validation_loop, …
+Tiles     Atlas/terrain     godot_create_tile_atlas, godot_better_tile_editor_* (optional addon)
+Context   Game overview     devpilot_game_context, godot://project/context, MCP workflow prompts
+Tests     Automated         devpilot_run_headless, devpilot_run_gut_tests (optional GUT addon)
 
 v2.x      Prompt-first      devpilot_route_prompt, devpilot_execute_prompt_workflow, devpilot_refine_plan, …
 v2.x      Onboarding        devpilot_init_wizard, devpilot_help, devpilot_tutorial, devpilot_game, …
@@ -137,6 +119,7 @@ Per-phase validation: `docs/PHASE_<N>_VALIDATION.md`.
 ## Security model
 
 - **Path sandbox:** every `res://` path resolved + checked against the project root. Traversal (`..`), absolute paths, foreign URIs all rejected.
+- **Editor bridge:** listens only on loopback, requires a random session token in `.godot_mcp/bridge-token`, and verifies the project path and protocol version before MCP tools reach the editor. The installer ignores the token in Git.
 - **Read-only mode:** `GODOT_MCP_READ_ONLY=true` blocks every mutating tool with `READ_ONLY_MODE`. Read-only allowlist is explicit per tool.
 - **Backups:** every script/file overwrite copies the original to `.godot_mcp/backups/YYYY-MM-DD/<file>.bak`.
 - **Dry run:** mutating tools accept `dry_run=true` and return a `planned_changes` list without touching the filesystem or the editor.
@@ -165,7 +148,7 @@ Each example has a README with a suggested tool sequence.
 
 ```bash
 cd mcp-server
-npm run dev          # tsx watch mode
+npm run dev          # build and start the server
 npm test             # vitest run
 npm run build        # tsc → dist/
 ```
@@ -173,6 +156,8 @@ npm run build        # tsc → dist/
 Tests are excluded from `tsconfig.json` and run via vitest only.
 
 Manual validation with Godot editor: see `docs/MANUAL_TESTING_GUIDE.md`.
+
+Run `node evals/runner.js --all --project .` with the editor open to execute the eight baseline MCP cases. `node scripts/package-release.mjs` creates a versioned install archive and SHA-256 checksum after `npm run build`.
 
 ---
 
@@ -190,7 +175,7 @@ mcp-server/
 │                        runtimeTools, intelligenceTools, memoryTools,
 │                        toolkit2dTools, toolkit3dTools, toolkit13Tools,
 │                        testTools, agenticTools, blueprintLibrary*, …
-└── tests/               39 vitest files
+└── tests/               vitest files
 
 addons/godot_devpilot_mcp/
 ├── plugin.cfg, plugin.gd

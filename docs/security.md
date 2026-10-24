@@ -1,5 +1,11 @@
 # Security — Godot DevPilot MCP
 
+## Ponte local implementada
+
+O plugin escuta somente em loopback e exige um token aleatório de 32 bytes em cada pedido JSON-RPC. O token é recriado quando o plugin inicia e fica em `.godot_mcp/bridge-token`; no Unix, o arquivo recebe permissão `0600`. O instalador adiciona o arquivo ao `.gitignore` do jogo. O servidor MCP compara o caminho real do projeto, a versão do plugin e a versão do protocolo no primeiro health check antes de disponibilizar a conexão. A ponte limita clientes simultâneos e tamanho de mensagens.
+
+O token impede acesso sem a posse do arquivo, mas não isola outros processos da mesma conta de usuário que já podem ler os arquivos do jogo. O modo somente leitura é aplicado pelo servidor MCP e não deve ser interpretado como proteção contra um processo local comprometido com acesso ao token.
+
 ## 1. Objetivo deste documento
 
 Este documento define as políticas de segurança do **Godot DevPilot MCP**.

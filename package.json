@@ -1,0 +1,35 @@
+{
+  "name": "godopilot-mcp",
+  "version": "2.6.0",
+  "description": "One-command Godot MCP setup for Claude Code and Codex",
+  "type": "module",
+  "bin": {
+    "godopilot": "bin/godopilot.mjs"
+  },
+  "files": [
+    "bin/godopilot.mjs",
+    "install.sh",
+    "install.ps1",
+    "scripts/install.mjs",
+    "addons/godot_devpilot_mcp",
+    "mcp-server/dist",
+    "mcp-server/package.json",
+    "mcp-server/package-lock.json",
+    "README.md",
+    "docs/installation.md",
+    "docs/ai_game_development_roadmap.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepare": "npm --prefix mcp-server ci && npm --prefix mcp-server run build",
+    "test:installer": "node --test scripts/install.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joaoviitorsx/godot-devpilot-mcp.git"
+  },
+  "license": "MIT"
+}

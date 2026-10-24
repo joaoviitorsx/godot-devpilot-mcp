@@ -8,6 +8,7 @@ import type { ServerConfig } from "../config/config.js";
 import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { resolveProjectRelativePath, safePathComponent } from "../safety/pathGuard.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -51,7 +52,7 @@ export function registerBehaviorReplayTools(server: McpServer, godot: GodotClien
     async (params) =>
       toMcpResult(
         await executeToolSafely(ctx("godot_replay_behavior_test", config), async () => {
-          const scenarioPath = path.join(config.projectRoot, ".godot_mcp", "tests", `${params.test_name}.json`);
+          const scenarioPath = resolveProjectRelativePath(`.godot_mcp/tests/${safePathComponent(params.test_name)}.json`, config.projectRoot).absolutePath;
           let scenario: Scenario;
           try {
             const content = await readFile(scenarioPath, "utf8");
@@ -71,7 +72,7 @@ export function registerBehaviorReplayTools(server: McpServer, godot: GodotClien
           await sleep(params.hold_ms);
 
           if (scenario.input_recording) {
-            const recordingPath = path.join(config.projectRoot, ".godot_mcp", "recordings", `${scenario.input_recording}.json`);
+            const recordingPath = resolveProjectRelativePath(`.godot_mcp/recordings/${safePathComponent(scenario.input_recording)}.json`, config.projectRoot).absolutePath;
             try {
               const recContent = await readFile(recordingPath, "utf8");
               const recording = JSON.parse(recContent) as { events: Array<{ type: string; delay_ms: number; params: Record<string, unknown> }> };

@@ -137,7 +137,7 @@ export function registerQualityExtraTools(server: McpServer, godot: GodotClient,
 
   server.tool(
     "devpilot_stream_runtime_metrics",
-    "Sample debug.get_process_stats over N seconds to capture FPS, memory and draw calls timeline. Useful while game is running to spot performance dips.",
+    "Sample runtime.get_process_stats over N seconds to capture FPS, memory and draw calls timeline. Useful while game is running to spot performance dips.",
     {
       seconds: z.number().int().min(1).max(60).optional().default(5),
       interval_ms: z.number().int().min(100).max(2000).optional().default(500),
@@ -153,7 +153,7 @@ export function registerQualityExtraTools(server: McpServer, godot: GodotClient,
           const start = Date.now();
           while (Date.now() - start < seconds * 1000) {
             try {
-              const r = await godot.call("debug.get_process_stats", {});
+              const r = await godot.call("runtime.get_process_stats", {});
               if (r.ok) samples.push({ t: Date.now() - start, data: r.data });
             } catch { /* ignore */ }
             await new Promise((res) => setTimeout(res, interval_ms));

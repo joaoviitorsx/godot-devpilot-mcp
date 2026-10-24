@@ -137,20 +137,33 @@ func t(key: String) -> String:
 
 // ── headless run ─────────────────────────────────────────────────────────────
 
-function runGodotHeadless(godotBin: string, projectRoot: string, quitAfter: number): Promise<{ stdout: string; stderr: string; code: number | null }> {
+function runGodotCommand(godotBin: string, projectRoot: string, args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number | null; timedOut: boolean }> {
   return new Promise((resolve) => {
     const child = spawn(godotBin, [
       "--headless",
       "--path", projectRoot,
-      `--quit-after`, String(quitAfter),
+      ...args
     ], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (d) => { stdout += d.toString(); });
-    child.stderr.on("data", (d) => { stderr += d.toString(); });
-    child.on("close", (code) => resolve({ stdout, stderr, code }));
-    child.on("error", () => resolve({ stdout, stderr: stderr + "\n[spawn error]", code: -1 }));
+    let timedOut = false;
+    let settled = false;
+    const finish = (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ stdout, stderr, code, timedOut });
+    };
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
+    child.stdout.on("data", (d) => { stdout = (stdout + d.toString()).slice(-100_000); });
+    child.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-100_000); });
+    child.on("close", (code) => finish(code));
+    child.on("error", (error) => { stderr += `\n[spawn error] ${error.message}`; finish(-1); });
   });
+}
+
+function runGodotHeadless(godotBin: string, projectRoot: string, seconds: number) {
+  return runGodotCommand(godotBin, projectRoot, [], seconds * 1000);
 }
 
 // ── perf budget ──────────────────────────────────────────────────────────────
@@ -250,7 +263,7 @@ export function registerQualityTools(server: McpServer, config: ServerConfig): v
 
   server.tool(
     "devpilot_run_headless",
-    "Run the project headless via Godot CLI for N seconds, capture stdout+stderr. Useful for CI / capturing real runtime errors outside the editor.",
+    "Run the project headless via Godot CLI for N wall-clock seconds, capture stdout+stderr and report runtime errors.",
     {
       seconds: z.number().int().positive().max(60).optional().default(5),
       godot_bin: z.string().optional().default("godot").describe("Path to godot binary. Default: 'godot' (PATH lookup)."),
@@ -260,21 +273,43 @@ export function registerQualityTools(server: McpServer, config: ServerConfig): v
         await executeToolSafely(ctx("devpilot_run_headless", config), async (): Promise<ToolResponse> => {
           try {
             const r = await runGodotHeadless(godot_bin, config.projectRoot, seconds);
-            const errorLines = r.stderr.split("\n").filter((l) => /error|ERROR/.test(l)).length;
-            return createSuccessResponse(
-              {
-                exit_code: r.code,
-                stdout: r.stdout.slice(-10_000),
-                stderr: r.stderr.slice(-10_000),
-                error_line_count: errorLines,
-              },
-              `Headless run complete (code=${r.code}, ${errorLines} error line(s) detected).`
-            );
+            const errorLines = `${r.stdout}\n${r.stderr}`.split("\n").filter((line) => /^\s*(?:SCRIPT )?ERROR:/.test(line)).length;
+            const data = { exit_code: r.code, completed_by_timeout: r.timedOut, stdout: r.stdout.slice(-10_000), stderr: r.stderr.slice(-10_000), error_line_count: errorLines };
+            if ((!r.timedOut && r.code !== 0) || errorLines > 0) {
+              return createErrorResponse("HEADLESS_RUNTIME_ERRORS", "Headless run exited unsuccessfully or emitted Godot errors.", data, ["Inspect stdout/stderr, fix the reported issue, and rerun the same check."]);
+            }
+            return createSuccessResponse(data, `Headless run completed (${seconds} second limit, ${errorLines} error lines).`);
           } catch (e) {
             return createErrorResponse("HEADLESS_RUN_FAILED", (e as Error).message, {}, ["Ensure 'godot' is in PATH or pass godot_bin explicitly."]);
           }
         })
       )
+  );
+
+  server.tool(
+    "devpilot_run_gut_tests",
+    "Run an installed GUT test directory or .gd test script headlessly and return the exit status and output. Requires addons/gut/gut_cmdln.gd in the game project.",
+    {
+      test_path: z.string().optional().default("res://tests").describe("Project-local test directory or a test_*.gd file."),
+      godot_bin: z.string().optional().default("godot"),
+      timeout_seconds: z.number().int().min(1).max(300).optional().default(120)
+    },
+    async ({ test_path, godot_bin, timeout_seconds }) => toMcpResult(
+      await executeToolSafely(ctx("devpilot_run_gut_tests", config), async (): Promise<ToolResponse> => {
+        const runner = resolveProjectPath("res://addons/gut/gut_cmdln.gd", config.projectRoot);
+        if (!(await fileExists(runner.absolutePath))) {
+          return createErrorResponse("GUT_NOT_INSTALLED", "GUT CLI is not installed in this project.", {}, ["Install a GUT version compatible with this Godot version under addons/gut/."]);
+        }
+        const target = resolveProjectPath(test_path, config.projectRoot);
+        if (!(await fileExists(target.absolutePath))) return createErrorResponse("TEST_PATH_MISSING", "Test path does not exist.", { test_path: target.resPath });
+        const isScript = target.resPath.endsWith(".gd");
+        const args = ["--script", "res://addons/gut/gut_cmdln.gd", isScript ? `-gtest=${target.resPath}` : `-gdir=${target.resPath}`, "-gexit", "-gdisable_colors"];
+        const run = await runGodotCommand(godot_bin, config.projectRoot, args, timeout_seconds * 1000);
+        const data = { test_path: target.resPath, exit_code: run.code, timed_out: run.timedOut, stdout: run.stdout.slice(-20_000), stderr: run.stderr.slice(-20_000) };
+        if (run.timedOut || run.code !== 0) return createErrorResponse("GUT_TEST_FAILED", "GUT tests failed, timed out, or could not start.", data, ["Inspect the GUT output and rerun the same test path after a fix."]);
+        return createSuccessResponse(data, "GUT tests passed.");
+      })
+    )
   );
 
   server.tool(

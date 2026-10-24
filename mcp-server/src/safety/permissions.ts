@@ -6,6 +6,8 @@ export type ReadOnlyCheck = {
 };
 
 const READ_ONLY_TOOL_ALLOWLIST = new Set([
+  "devpilot_game_context",
+  "devpilot_audit_3d_scene",
   "godot_health_check",
   "godot_ping",
   "godot_get_capabilities",
@@ -39,6 +41,8 @@ const READ_ONLY_TOOL_ALLOWLIST = new Set([
   "godot_get_output_logs",
   "godot_get_debugger_errors",
   "godot_get_script_parse_errors",
+  "godot_better_tile_editor_status",
+  "godot_better_tile_editor_list_terrains",
   "godot_get_last_run_report",
   "godot_assert_no_errors",
   // Phase 7 — read-only screenshot comparison
@@ -61,6 +65,11 @@ const READ_ONLY_TOOL_ALLOWLIST = new Set([
   "godot_detect_gameplay_systems",
   "godot_analyze_architecture",
   "godot_validate_conventions",
+  "godot_project_doctor",
+  "godot_infer_input_map_from_scripts",
+  "godot_infer_autoloads_from_scripts",
+  "godot_analyze_scene_architecture",
+  "devpilot_validate_project",
   // Phase 10 — read-only memory access
   "godot_get_project_memory",
   "godot_get_architecture_notes",

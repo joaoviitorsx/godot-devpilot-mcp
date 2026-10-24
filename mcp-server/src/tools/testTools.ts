@@ -168,7 +168,7 @@ export function registerTestTools(server: McpServer, godot: GodotClient, config:
       steps: z.array(z.object({
         name: z.string(),
         type: z.enum(["assert_node_exists", "assert_property_equals", "assert_screenshot_matches"]),
-        params: z.record(z.unknown())
+        params: z.record(z.string(), z.unknown())
       })).min(1).describe("Ordered list of test steps.")
     },
     async ({ steps }) => toMcpResult(
@@ -251,7 +251,7 @@ export function registerTestTools(server: McpServer, godot: GodotClient, config:
       steps: z.array(z.object({
         name: z.string(),
         type: z.enum(["assert_node_exists", "assert_property_equals", "assert_screenshot_matches"]),
-        params: z.record(z.unknown())
+        params: z.record(z.string(), z.unknown())
       })).min(1).describe("Ordered test steps."),
       overwrite: z.boolean().optional().describe("Overwrite if exists. Defaults to false.")
     },

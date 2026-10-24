@@ -25,7 +25,7 @@ Ele descreve como estruturar, implementar, testar e evoluir o projeto, cobrindo:
 
 ```text
 Godot 4.2 ou superior
-Node.js 18 ou superior
+Node.js 22.12 ou superior
 npm, pnpm ou yarn
 Git
 Editor de código, preferencialmente VS Code ou Cursor
@@ -125,7 +125,7 @@ Script esperado no `package.json`:
 ```json
 {
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "npm run build && node dist/index.js",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest"
@@ -549,7 +549,7 @@ Ferramentas sugeridas:
 
 ```text
 Vitest
-tsx
+Node.js
 mock WebSocket server
 ```
 

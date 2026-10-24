@@ -12,6 +12,7 @@ const ScreenshotTools = preload("res://addons/godot_devpilot_mcp/tools/screensho
 const InputTools = preload("res://addons/godot_devpilot_mcp/tools/input_tools.gd")
 const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tools.gd")
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
+const BetterTileEditorTools = preload("res://addons/godot_devpilot_mcp/tools/better_tile_editor_tools.gd")
 
 const PLUGIN_VERSION := "2.6.0"
 const PROTOCOL_VERSION := "1.0.0"
@@ -26,6 +27,7 @@ var _screenshot_tools: ScreenshotTools
 var _input_tools: InputTools
 var _runtime_tools: RuntimeTools
 var _extended_tools: ExtendedTools
+var _better_tile_editor_tools: BetterTileEditorTools
 
 
 func setup(p_editor_interface, p_undo_redo = null) -> void:
@@ -57,6 +59,8 @@ func setup(p_editor_interface, p_undo_redo = null) -> void:
 
 	_extended_tools = ExtendedTools.new()
 	_extended_tools.setup(editor_interface, _undo_service)
+	_better_tile_editor_tools = BetterTileEditorTools.new()
+	_better_tile_editor_tools.setup(editor_interface)
 
 
 func dispatch(request: Variant) -> Dictionary:
@@ -303,6 +307,18 @@ func dispatch(request: Variant) -> Dictionary:
 		# Phase 20 — Test scenario (used by generate_test_from_behavior)
 		"test.create_scenario":
 			return Protocol.success_envelope(request_id, _extended_tools.create_scenario_rpc(params))
+		"better_tile_editor.status":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.status(params))
+		"better_tile_editor.list_terrains":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.list_terrains(params))
+		"better_tile_editor.create_terrain":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.create_terrain(params))
+		"better_tile_editor.assign_tile":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.assign_tile(params))
+		"better_tile_editor.paint_terrain":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.paint_terrain(params))
+		"tilemap.create_atlas":
+			return Protocol.success_envelope(request_id, _better_tile_editor_tools.create_atlas(params))
 		# Infer — bind input events at runtime
 		"infer.bind_key":
 			return Protocol.success_envelope(request_id, _extended_tools.bind_key(params))
@@ -411,7 +427,13 @@ func _get_capabilities(_params: Dictionary) -> Dictionary:
 				"runtime.find_node",
 				"runtime.get_current_camera",
 				"runtime.find_ui_element",
-				"runtime.click_ui_by_text"
+				"runtime.click_ui_by_text",
+				"better_tile_editor.status",
+				"better_tile_editor.list_terrains",
+				"better_tile_editor.create_terrain",
+				"better_tile_editor.assign_tile",
+				"better_tile_editor.paint_terrain",
+				"tilemap.create_atlas"
 			],
 			"features": {
 				"json_rpc": true,
@@ -421,7 +443,8 @@ func _get_capabilities(_params: Dictionary) -> Dictionary:
 				"debug_loop": true,
 				"screenshots": true,
 				"input_simulation": true,
-				"runtime_tree": true
+				"runtime_tree": true,
+				"better_tile_editor_optional": true
 			}
 		},
 		"Plugin capabilities loaded successfully."

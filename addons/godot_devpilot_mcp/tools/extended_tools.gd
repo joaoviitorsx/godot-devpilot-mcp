@@ -38,6 +38,16 @@ func _require_undo_redo(tool_name: String) -> Dictionary:
 	return {}
 
 
+func _valid_project_file_path(value: String) -> bool:
+	if not value.begins_with("res://") or value == "res://" or value.contains("\\"):
+		return false
+	var relative := value.trim_prefix("res://")
+	for segment in relative.split("/"):
+		if segment == ".." or segment == "" or segment == ".":
+			return false
+	return true
+
+
 func _variant_to_json(value) -> Variant:
 	match typeof(value):
 		TYPE_NIL: return null
@@ -820,6 +830,8 @@ func _collect_audio_nodes(node: Node, result: Array) -> void:
 func create_theme(params: Dictionary) -> Dictionary:
 	var path: String = str(params.get("path", "res://theme/default.tres"))
 	var overwrite: bool = bool(params.get("overwrite", false))
+	if not _valid_project_file_path(path):
+		return ResponseFactory.error("INVALID_PARAMS", "path must stay inside res://.", {}, [])
 
 	if not path.ends_with(".tres"):
 		return ResponseFactory.error("INVALID_PARAMS", "path must end in .tres.", {}, [])
@@ -841,6 +853,8 @@ func create_theme(params: Dictionary) -> Dictionary:
 
 func set_theme_color(params: Dictionary) -> Dictionary:
 	var theme_path: String = str(params.get("theme_path", ""))
+	if not _valid_project_file_path(theme_path):
+		return ResponseFactory.error("INVALID_PARAMS", "theme_path must stay inside res://.", {}, [])
 	var type: String = str(params.get("type", ""))
 	var name: String = str(params.get("name", ""))
 	var color_str: String = str(params.get("color", "#ffffff"))
@@ -856,6 +870,8 @@ func set_theme_color(params: Dictionary) -> Dictionary:
 
 func set_theme_constant(params: Dictionary) -> Dictionary:
 	var theme_path: String = str(params.get("theme_path", ""))
+	if not _valid_project_file_path(theme_path):
+		return ResponseFactory.error("INVALID_PARAMS", "theme_path must stay inside res://.", {}, [])
 	var type: String = str(params.get("type", ""))
 	var name: String = str(params.get("name", ""))
 	var value: int = int(params.get("value", 0))
@@ -871,6 +887,8 @@ func set_theme_constant(params: Dictionary) -> Dictionary:
 
 func set_theme_font_size(params: Dictionary) -> Dictionary:
 	var theme_path: String = str(params.get("theme_path", ""))
+	if not _valid_project_file_path(theme_path):
+		return ResponseFactory.error("INVALID_PARAMS", "theme_path must stay inside res://.", {}, [])
 	var type: String = str(params.get("type", ""))
 	var name: String = str(params.get("name", ""))
 	var size: int = int(params.get("size", 16))
@@ -886,6 +904,8 @@ func set_theme_font_size(params: Dictionary) -> Dictionary:
 
 func set_theme_stylebox(params: Dictionary) -> Dictionary:
 	var theme_path: String = str(params.get("theme_path", ""))
+	if not _valid_project_file_path(theme_path):
+		return ResponseFactory.error("INVALID_PARAMS", "theme_path must stay inside res://.", {}, [])
 	var type: String = str(params.get("type", ""))
 	var name: String = str(params.get("name", "normal"))
 
@@ -912,6 +932,8 @@ func set_theme_stylebox(params: Dictionary) -> Dictionary:
 
 func get_theme_info(params: Dictionary) -> Dictionary:
 	var theme_path: String = str(params.get("theme_path", ""))
+	if not _valid_project_file_path(theme_path):
+		return ResponseFactory.error("INVALID_PARAMS", "theme_path must stay inside res://.", {}, [])
 	var theme: Theme = load(theme_path) as Theme
 	if theme == null:
 		return ResponseFactory.error("NOT_FOUND", "Theme not found.", {}, [])
@@ -1079,6 +1101,8 @@ func get_export_info(params: Dictionary) -> Dictionary:
 
 func read_resource(params: Dictionary) -> Dictionary:
 	var path: String = str(params.get("path", ""))
+	if not _valid_project_file_path(path):
+		return ResponseFactory.error("INVALID_PARAMS", "path must stay inside res://.", {}, [])
 	if path.is_empty():
 		return ResponseFactory.error("INVALID_PARAMS", "path is required.", {}, [])
 
@@ -1110,6 +1134,8 @@ func read_resource(params: Dictionary) -> Dictionary:
 
 func edit_resource(params: Dictionary) -> Dictionary:
 	var path: String = str(params.get("path", ""))
+	if not _valid_project_file_path(path):
+		return ResponseFactory.error("INVALID_PARAMS", "path must stay inside res://.", {}, [])
 	var property: String = str(params.get("property", ""))
 	var value = params.get("value", null)
 
@@ -1136,6 +1162,8 @@ func edit_resource(params: Dictionary) -> Dictionary:
 
 func create_resource(params: Dictionary) -> Dictionary:
 	var path: String = str(params.get("path", ""))
+	if not _valid_project_file_path(path):
+		return ResponseFactory.error("INVALID_PARAMS", "path must stay inside res://.", {}, [])
 	var resource_type: String = str(params.get("resource_type", "Resource"))
 	var overwrite: bool = bool(params.get("overwrite", false))
 	var properties: Dictionary = params.get("properties", {})
@@ -1410,6 +1438,8 @@ func create_scenario_rpc(params: Dictionary) -> Dictionary:
 
 	if name_str.is_empty() or steps.is_empty():
 		return ResponseFactory.error("INVALID_PARAMS", "name and steps are required.", {}, [])
+	if not name_str.is_valid_identifier() or name_str.length() > 128:
+		return ResponseFactory.error("INVALID_PARAMS", "Scenario name must be a single identifier of at most 128 characters.", {}, [])
 
 	var dir_path := ProjectSettings.globalize_path("res://.godot_mcp/tests")
 	DirAccess.make_dir_recursive_absolute(dir_path)

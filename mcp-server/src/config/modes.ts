@@ -73,7 +73,7 @@ export type AllToolName = (typeof ALL_TOOLS)[number];
 
 export type ModeCapabilities = {
   mode: ToolMode;
-  tools: readonly AllToolName[];
+  tools: readonly string[];
   toolsCount: number;
   availableCategories: string[];
   features: {
@@ -100,25 +100,27 @@ export function normalizeMode(value: string | undefined): ToolMode {
   return "core";
 }
 
-export function getModeCapabilities(mode: ToolMode): ModeCapabilities {
+export function getModeCapabilities(mode: ToolMode, registeredTools?: readonly string[]): ModeCapabilities {
+  const tools = registeredTools ?? (mode === "minimal" ? PHASE1_TOOLS : mode === "core" ? ALL_TOOLS : ALL_TOOLS);
+  const has = (prefix: string) => tools.some((name) => name.startsWith(prefix));
   return {
     mode,
-    tools: ALL_TOOLS,
-    toolsCount: ALL_TOOLS.length,
-    availableCategories: ["core", "connection", "protocol", "project", "files", "scene", "node", "script"],
+    tools,
+    toolsCount: tools.length,
+    availableCategories: [...new Set(tools.map((name) => name.split("_")[0]))],
     features: {
       json_rpc: true,
       health_check: true,
       heartbeat: true,
       reconnect: true,
-      project_tools: true,
-      undo_redo: true,
-      debug_loop: true,
-      screenshots: true,
-      input_simulation: true,
-      runtime_tree: true,
-      project_intelligence: true,
-      project_memory: true
+      project_tools: has("godot_get_project") || has("devpilot_"),
+      undo_redo: has("godot_add_node"),
+      debug_loop: has("godot_run_project"),
+      screenshots: has("godot_take_") || has("godot_get_viewport"),
+      input_simulation: has("godot_press_") || has("godot_mouse_"),
+      runtime_tree: has("godot_get_runtime"),
+      project_intelligence: has("devpilot_") || has("godot_analyze_"),
+      project_memory: has("godot_get_project_memory") || has("godot_update_project_memory")
     }
   };
 }

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { mkdir, readdir, readFile, writeFile, cp, rm, access, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, cp, rm, access, stat, lstat, mkdtemp, rename } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
@@ -13,6 +13,7 @@ import { BLUEPRINT_3D_REGISTRY } from "./blueprintLibrary3DTools.js";
 import { BLUEPRINT_RPG_REGISTRY } from "./blueprintLibraryRPGTools.js";
 import { BLUEPRINT_AV_REGISTRY } from "./blueprintLibraryAVTools.js";
 import { TILEMAP_DUNGEON_REGISTRY } from "./tilemapAndDungeonTools.js";
+import { resolveProjectPath, resolveProjectRelativePath, safePathComponent } from "../safety/pathGuard.js";
 
 const ALL_BLUEPRINTS = [
   ...BLUEPRINT_REGISTRY,
@@ -50,25 +51,30 @@ export function registerSnapshotTools(server: McpServer, config: ServerConfig): 
       toMcpResult(
         await executeToolSafely(ctx("devpilot_snapshot_project", config), async (): Promise<ToolResponse> => {
           if (config.security.readOnly) return createErrorResponse("READ_ONLY", "", {}, []);
-          const id = (label ?? new Date().toISOString().replace(/[:.]/g, "-")).replace(/[^A-Za-z0-9_\-.]/g, "_");
-          const dest = path.join(config.projectRoot, SNAPSHOT_BASE, id);
+          const id = safePathComponent((label ?? new Date().toISOString().replace(/[:.]/g, "-")).replace(/[^A-Za-z0-9_\-.]/g, "_").slice(0, 128));
+          const dest = resolveProjectRelativePath(`${SNAPSHOT_BASE}/${id}`, config.projectRoot).absolutePath;
+          if (await fileExists(dest)) return createErrorResponse("SNAPSHOT_EXISTS", `Snapshot ${id} already exists.`, { id }, []);
           await mkdir(dest, { recursive: true });
           const copied: string[] = [];
           for (const sub of SNAPSHOT_DIRS) {
-            const src = path.join(config.projectRoot, sub);
+            const src = resolveProjectPath(`res://${sub}`, config.projectRoot).absolutePath;
             if (!(await fileExists(src))) continue;
             const dst = path.join(dest, sub);
             await mkdir(path.dirname(dst), { recursive: true });
             try {
               const st = await stat(src);
-              if (st.isDirectory()) await cp(src, dst, { recursive: true });
+              if (st.isDirectory()) await cp(src, dst, { recursive: true, filter: async (entry) => {
+                if ((await lstat(entry)).isSymbolicLink()) throw new Error(`Source contains a symlink: ${entry}`);
+                return true;
+              } });
               else {
                 const data = await readFile(src);
                 await writeFile(dst, data);
               }
               copied.push(sub);
             } catch (e) {
-              /* ignore individual copy errors */
+              await rm(dest, { recursive: true, force: true });
+              throw e;
             }
           }
           await writeFile(
@@ -88,7 +94,7 @@ export function registerSnapshotTools(server: McpServer, config: ServerConfig): 
     async () =>
       toMcpResult(
         await executeToolSafely(ctx("devpilot_list_snapshots", config), async (): Promise<ToolResponse> => {
-          const base = path.join(config.projectRoot, SNAPSHOT_BASE);
+          const base = resolveProjectRelativePath(SNAPSHOT_BASE, config.projectRoot).absolutePath;
           if (!(await fileExists(base))) return createSuccessResponse({ snapshots: [] }, "No snapshots yet.");
           const entries = await readdir(base, { withFileTypes: true });
           const snapshots: Array<{ id: string; created_at?: string; label?: string }> = [];
@@ -124,27 +130,63 @@ export function registerSnapshotTools(server: McpServer, config: ServerConfig): 
         await executeToolSafely(ctx("devpilot_rollback_to_snapshot", config), async (): Promise<ToolResponse> => {
           if (config.security.readOnly) return createErrorResponse("READ_ONLY", "", {}, []);
           if (!confirm) return createErrorResponse("CONFIRM_REQUIRED", "Pass confirm=true to apply rollback.", { id }, []);
-          const src = path.join(config.projectRoot, SNAPSHOT_BASE, id);
-          if (!(await fileExists(src))) return createErrorResponse("SNAPSHOT_NOT_FOUND", `Snapshot ${id} not found.`, {}, []);
+          const src = resolveProjectRelativePath(`${SNAPSHOT_BASE}/${safePathComponent(id)}`, config.projectRoot).absolutePath;
+          if (!(await fileExists(src)) || !(await lstat(src)).isDirectory()) return createErrorResponse("SNAPSHOT_NOT_FOUND", `Snapshot ${id} not found.`, {}, []);
+          let copied: string[];
+          try {
+            const metadataPath = resolveProjectRelativePath(`${SNAPSHOT_BASE}/${id}/snapshot.json`, config.projectRoot).absolutePath;
+            const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as { id?: unknown; copied?: unknown };
+            if (metadata.id !== id || !Array.isArray(metadata.copied) || metadata.copied.length === 0 || new Set(metadata.copied).size !== metadata.copied.length || metadata.copied.some((item) => !SNAPSHOT_DIRS.includes(item))) throw new Error("Invalid snapshot metadata");
+            copied = metadata.copied as string[];
+          } catch {
+            return createErrorResponse("INVALID_SNAPSHOT", `Snapshot ${id} has missing or invalid metadata.`, {}, []);
+          }
+          const stage = await mkdtemp(path.join(config.projectRoot, ".devpilot", "rollback-"));
           const restored: string[] = [];
-          for (const sub of SNAPSHOT_DIRS) {
-            const s = path.join(src, sub);
-            if (!(await fileExists(s))) continue;
-            const d = path.join(config.projectRoot, sub);
-            try {
-              const st = await stat(s);
-              if (st.isDirectory()) {
-                if (await fileExists(d)) await rm(d, { recursive: true, force: true });
-                await cp(s, d, { recursive: true });
-              } else {
-                const data = await readFile(s);
-                await mkdir(path.dirname(d), { recursive: true });
-                await writeFile(d, data);
-              }
+          const moved: Array<{ destination: string; backup: string; hadOriginal: boolean }> = [];
+          let preserveStage = false;
+          try {
+            // Stage every source before touching the live project. Reject symlinked files.
+            for (const sub of copied) {
+              const source = resolveProjectRelativePath(`${SNAPSHOT_BASE}/${id}/${sub}`, config.projectRoot).absolutePath;
+              if (!(await fileExists(source))) throw new Error(`Snapshot ${id} is incomplete: ${sub} is missing.`);
+              const staged = path.join(stage, "new", sub);
+              await mkdir(path.dirname(staged), { recursive: true });
+              await cp(source, staged, { recursive: true, filter: async (entry) => {
+                if ((await lstat(entry)).isSymbolicLink()) throw new Error(`Snapshot contains a symlink: ${entry}`);
+                return true;
+              } });
               restored.push(sub);
-            } catch {
-              /* ignore */
             }
+            for (const sub of restored) {
+              const destination = resolveProjectPath(`res://${sub}`, config.projectRoot).absolutePath;
+              const backup = path.join(stage, "backup", sub);
+              const hadOriginal = await fileExists(destination);
+              if (hadOriginal) {
+                await mkdir(path.dirname(backup), { recursive: true });
+                await rename(destination, backup);
+              }
+              moved.push({ destination, backup, hadOriginal });
+              await mkdir(path.dirname(destination), { recursive: true });
+              await rename(path.join(stage, "new", sub), destination);
+            }
+          } catch (error) {
+            const restoreErrors: string[] = [];
+            for (const item of moved.reverse()) {
+              try {
+                await rm(item.destination, { recursive: true, force: true });
+                if (item.hadOriginal) await rename(item.backup, item.destination);
+              } catch (restoreError) {
+                restoreErrors.push(restoreError instanceof Error ? restoreError.message : String(restoreError));
+              }
+            }
+            if (restoreErrors.length > 0) {
+              preserveStage = true;
+              throw new Error(`Rollback failed and some originals could not be restored. Backups preserved at ${stage}. ${restoreErrors.join("; ")}`, { cause: error });
+            }
+            throw error;
+          } finally {
+            if (!preserveStage) await rm(stage, { recursive: true, force: true });
           }
           return createSuccessResponse({ id, restored }, `Rolled back to '${id}'.`);
         })
@@ -234,11 +276,11 @@ export function registerExplainProjectTool(server: McpServer, config: ServerConf
 
           let written: string | null = null;
           if (!config.security.readOnly) {
-            const target = (persist_to ?? "res://.devpilot/project_overview.md").replace(/^res:\/\//, "");
-            const abs = path.join(config.projectRoot, target);
+            const target = persist_to ?? "res://.devpilot/project_overview.md";
+            const abs = resolveProjectPath(target, config.projectRoot).absolutePath;
             await mkdir(path.dirname(abs), { recursive: true });
             await writeFile(abs, md, "utf8");
-            written = `res://${target}`;
+            written = target;
           }
           return createSuccessResponse({ markdown: md, written_path: written }, "Project overview generated.");
         })

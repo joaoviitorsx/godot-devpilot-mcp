@@ -14,7 +14,10 @@ func _enter_tree() -> void:
 
 	var port := int(ProjectSettings.get_setting("godot_devpilot_mcp/server/port", 6505))
 	var host := str(ProjectSettings.get_setting("godot_devpilot_mcp/server/host", "127.0.0.1"))
-	rpc_server.start(port, host)
+	var start_result: Dictionary = rpc_server.start(port, host)
+	if not start_result.get("ok", false):
+		push_error("[Godot DevPilot MCP] WebSocket startup failed on %s:%d: %s" % [host, port, start_result.get("error", {}).get("message", "Unknown error")])
+		return
 	set_process(true)
 
 	# Hook runtime debugger to capture errors/output from the running scene.

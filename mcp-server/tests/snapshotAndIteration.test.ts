@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { registerSnapshotMaintenanceTools } from "../src/tools/snapshotMaintenanceTools.js";
@@ -41,6 +41,45 @@ describe("snapshot tools", () => {
     const r = await server.run("devpilot_rollback_to_snapshot", { id: "x", confirm: false });
     expect(parse(r).ok).toBe(false);
     expect(parse(r).error.code).toBe("CONFIRM_REQUIRED");
+  });
+
+  it("rejects traversal IDs without changing project files", async () => {
+    const root = await makeTmpProject();
+    await mkdir(path.join(root, "scenes"));
+    await writeFile(path.join(root, "scenes", "A.tscn"), "current");
+    const server = makeServer();
+    registerSnapshotTools(server as never, makeConfig(root));
+    const result = parse(await server.run("devpilot_rollback_to_snapshot", { id: "../..", confirm: true }));
+    expect(result.ok).toBe(false);
+    expect(await readFile(path.join(root, "scenes", "A.tscn"), "utf8")).toBe("current");
+  });
+
+  it("restores the snapshot and reports only restored paths", async () => {
+    const root = await makeTmpProject();
+    await mkdir(path.join(root, "scenes"));
+    await writeFile(path.join(root, "scenes", "A.tscn"), "before");
+    const server = makeServer();
+    registerSnapshotTools(server as never, makeConfig(root));
+    expect(parse(await server.run("devpilot_snapshot_project", { label: "restore" })).ok).toBe(true);
+    await writeFile(path.join(root, "scenes", "A.tscn"), "after");
+    const result = parse(await server.run("devpilot_rollback_to_snapshot", { id: "restore", confirm: true }));
+    expect(result.ok).toBe(true);
+    expect(result.data.restored).toContain("scenes");
+    expect(await readFile(path.join(root, "scenes", "A.tscn"), "utf8")).toBe("before");
+  });
+
+  it("rejects an incomplete snapshot without replacing current files", async () => {
+    const root = await makeTmpProject();
+    await mkdir(path.join(root, "scenes"));
+    await writeFile(path.join(root, "scenes", "A.tscn"), "before");
+    const server = makeServer();
+    registerSnapshotTools(server as never, makeConfig(root));
+    await server.run("devpilot_snapshot_project", { label: "incomplete" });
+    await writeFile(path.join(root, "scenes", "A.tscn"), "current");
+    await rm(path.join(root, ".devpilot", "snapshots", "incomplete", "scenes"), { recursive: true });
+    const result = parse(await server.run("devpilot_rollback_to_snapshot", { id: "incomplete", confirm: true }));
+    expect(result.ok).toBe(false);
+    expect(await readFile(path.join(root, "scenes", "A.tscn"), "utf8")).toBe("current");
   });
 });
 

@@ -10,7 +10,7 @@ Cobre: Fases 1, 4, 5, 6, 7, 8. Fases 0, 2, 3 são validadas por análise estáti
 
 ```text
 - Godot 4.3+ instalado (binário godot ou godot4 no PATH)
-- Node.js 18+ instalado
+- Node.js 22.12+ instalado
 - Repo do projeto clonado em /caminho/para/godot-devpilot-mcp
 ```
 

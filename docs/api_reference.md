@@ -17,16 +17,24 @@ Ele cobre:
 
 Este documento deve ser atualizado sempre que uma ferramenta for adicionada, removida ou tiver schema alterado.
 
+**Catálogo ativo:** `minimal` registra somente as cinco ferramentas de conexão; `core` acrescenta edição e composição básicas; `full` expõe as famílias especializadas; `agentic` acrescenta os orquestradores. As anotações de modo e saídas de versões antigas abaixo são exemplos históricos. Use `godot_get_capabilities` para obter os nomes e schemas efetivamente registrados na versão instalada.
+
+**Tiles e terrenos (`full`/`agentic`):** `godot_create_tile_atlas` converte uma textura importada em `TileSet`; `godot_better_tile_editor_status` verifica o addon opcional; `godot_better_tile_editor_list_terrains`, `godot_better_tile_editor_create_terrain`, `godot_better_tile_editor_assign_tile` e `godot_better_tile_editor_paint_terrain` usam a API do Better Tile Editor instalado. Parâmetros, fluxo e limites: [guia de tiles](better_tile_editor.md).
+
+**Contexto e prompts (`core`/`full`/`agentic`):** `devpilot_game_context` retorna uma visão limitada do jogo, com cena principal, contagens, caminhos de cenas/scripts/assets, addons e referências ausentes. O recurso MCP `godot://project/context` fornece o mesmo contexto como JSON. Os prompts MCP `devpilot_feature_loop(goal, acceptance?)`, `devpilot_playtest_loop(behavior)` e `devpilot_tile_workflow(texture_path, level_goal)` orientam a IA em ciclos de implementação e verificação; eles não executam ferramentas por conta própria.
+
+**Execução e testes (`core`/`full`/`agentic`):** `devpilot_run_headless(seconds?, godot_bin?)` usa tempo de relógio, encerra o processo ao atingir o limite e retorna erro se o Godot encerrar com código não zero ou emitir `ERROR:`. `devpilot_run_gut_tests(test_path?, godot_bin?, timeout_seconds?)` exige `res://addons/gut/gut_cmdln.gd`, aceita diretório de testes ou script `.gd` dentro do projeto e devolve o resultado do runner GUT.
+
 ---
 
 ## 2. Convenções gerais
 
 ## 2.1 Prefixo das ferramentas
 
-Todas as ferramentas públicas expostas via MCP usam o prefixo:
+As ferramentas históricas do editor usam `godot_`; os fluxos e ferramentas adicionais usam `devpilot_`. Ambos os prefixos aparecem no catálogo MCP:
 
 ```text
-godot_
+godot_ ou devpilot_
 ```
 
 Exemplos:

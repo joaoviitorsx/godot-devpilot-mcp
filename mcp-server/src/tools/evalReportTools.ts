@@ -3,11 +3,15 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import type { ServerConfig } from "../config/config.js";
 import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { resolveProjectRelativePath, safePathComponent } from "../safety/pathGuard.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -47,16 +51,22 @@ type EvalResult = {
   ran_at: string;
 };
 
-const EXTERNAL_TO_INTERNAL: Record<string, string> = {
-  godot_health_check: "core.health_check",
-  godot_ping: "core.ping",
-  godot_get_capabilities: "core.capabilities",
-};
+async function createEvalClient(projectRoot: string): Promise<Client> {
+  const client = new Client({ name: "devpilot-eval-tool", version: "1.0.0" });
+  const entryPoint = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "index.js");
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [entryPoint], cwd: projectRoot, env: { ...process.env, GODOT_MCP_PROJECT_ROOT: projectRoot, GODOT_MCP_MODE: "full", GODOT_MCP_READ_ONLY: "false" }, stderr: "pipe" }));
+  return client;
+}
 
-function resolveMethod(c: EvalCase): string | null {
-  if (c.mcp_method) return c.mcp_method;
-  if (!c.expected_tool) return null;
-  return EXTERNAL_TO_INTERNAL[c.expected_tool] ?? null;
+async function runCase(c: EvalCase, godot: GodotClient, client: Client): Promise<ToolResponse> {
+  if (c.mcp_method) return callRpc(godot, c.mcp_method, c.params ?? {});
+  if (!c.expected_tool || ["godot_run_eval_case", "godot_run_all_evals"].includes(c.expected_tool)) return createErrorResponse("METHOD_UNRESOLVED", "Eval case must name a callable MCP tool.", {}, []);
+  const response = await client.callTool({ name: c.expected_tool, arguments: c.params ?? {} });
+  const content = Array.isArray(response.content) ? response.content : [];
+  const body = content.find((item: unknown) => typeof item === "object" && item !== null && "type" in item && item.type === "text") as { text: string } | undefined;
+  if (!body) return createErrorResponse("INVALID_RESPONSE", "Tool returned no text response.", {}, []);
+  try { return JSON.parse(body.text) as ToolResponse; }
+  catch { return createErrorResponse("INVALID_RESPONSE", body.text, {}, []); }
 }
 
 function checkResponseContains(response: unknown, keys: string[]): { ok: boolean; missing: string[] } {
@@ -69,14 +79,14 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
   // ── godot_run_eval_case ────────────────────────────────────────────────────
   server.tool(
     "godot_run_eval_case",
-    "Execute a single eval case from evals/cases/. Calls the resolved internal RPC method with case params, validates response, writes result to evals/results/<id>.result.json.",
+    "Execute a single eval case through its MCP tool (or explicit internal mcp_method), validate the response, and save the result.",
     {
-      case_path: z.string().describe("Path to eval case JSON file (relative to project root or absolute)"),
+      case_path: z.string().describe("Project-relative path to eval case JSON file"),
     },
     async (params) =>
       toMcpResult(
         await executeToolSafely(ctx("godot_run_eval_case", config), async () => {
-          const absPath = path.isAbsolute(params.case_path) ? params.case_path : path.join(config.projectRoot, params.case_path);
+          const absPath = resolveProjectRelativePath(params.case_path, config.projectRoot).absolutePath;
           let evalCase: EvalCase;
           try {
             evalCase = JSON.parse(await readFile(absPath, "utf8"));
@@ -84,13 +94,13 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
             return createErrorResponse("CASE_NOT_FOUND", e instanceof Error ? e.message : String(e), { case_path: absPath }, []) as ToolResponse;
           }
 
-          const method = resolveMethod(evalCase);
-          if (!method) {
-            return createErrorResponse("METHOD_UNRESOLVED", `Cannot resolve internal RPC method for tool '${evalCase.expected_tool}'. Add 'mcp_method' field to the case.`, {}, []) as ToolResponse;
-          }
+          safePathComponent(evalCase.id);
 
           const start = Date.now();
-          const response = await callRpc(godot, method, evalCase.params ?? {});
+          const client = await createEvalClient(config.projectRoot);
+          let response: ToolResponse;
+          try { response = await runCase(evalCase, godot, client); }
+          finally { await client.close(); }
           const duration_ms = Date.now() - start;
 
           const failure_reasons: string[] = [];
@@ -114,7 +124,7 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
           };
 
           if (!config.security.readOnly) {
-            const resultsDir = path.join(config.projectRoot, "evals", "results");
+            const resultsDir = resolveProjectRelativePath("evals/results", config.projectRoot).absolutePath;
             await mkdir(resultsDir, { recursive: true });
             await writeFile(path.join(resultsDir, `${evalCase.id}.result.json`), JSON.stringify(result, null, 2), "utf8");
           }
@@ -135,7 +145,8 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
     async (params) =>
       toMcpResult(
         await executeToolSafely(ctx("godot_run_all_evals", config), async () => {
-          const casesDir = path.isAbsolute(params.cases_dir) ? params.cases_dir : path.join(config.projectRoot, params.cases_dir);
+          const casesDir = resolveProjectRelativePath(params.cases_dir, config.projectRoot).absolutePath;
+          const reportPath = resolveProjectRelativePath(params.report_path, config.projectRoot).absolutePath;
           let files: string[] = [];
           try {
             files = (await readdir(casesDir)).filter((f) => f.endsWith(".eval.json"));
@@ -144,25 +155,15 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
           }
 
           const results: EvalResult[] = [];
+          const client = await createEvalClient(config.projectRoot);
+          try {
           for (const f of files) {
             const absPath = path.join(casesDir, f);
             try {
               const evalCase = JSON.parse(await readFile(absPath, "utf8")) as EvalCase;
-              const method = resolveMethod(evalCase);
-              if (!method) {
-                results.push({
-                  id: evalCase.id,
-                  status: "error",
-                  expected_tool: evalCase.expected_tool,
-                  actual_response: null,
-                  passed: false,
-                  failure_reasons: ["unresolved method"],
-                  ran_at: new Date().toISOString(),
-                });
-                continue;
-              }
+              safePathComponent(evalCase.id);
               const start = Date.now();
-              const response = await callRpc(godot, method, evalCase.params ?? {});
+              const response = await runCase(evalCase, godot, client);
               const duration_ms = Date.now() - start;
               const failure_reasons: string[] = [];
               if (evalCase.expected_ok === true && !response.ok) failure_reasons.push("response.ok was false");
@@ -192,16 +193,17 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
               });
             }
           }
+          } finally { await client.close(); }
 
           const passed = results.filter((r) => r.status === "passed").length;
           const failed = results.filter((r) => r.status === "failed").length;
           const errored = results.filter((r) => r.status === "error").length;
 
           if (!config.security.readOnly) {
-            const resultsDir = path.join(config.projectRoot, "evals", "results");
+            const resultsDir = resolveProjectRelativePath("evals/results", config.projectRoot).absolutePath;
             await mkdir(resultsDir, { recursive: true });
             for (const r of results) {
-              await writeFile(path.join(resultsDir, `${r.id}.result.json`), JSON.stringify(r, null, 2), "utf8");
+              await writeFile(path.join(resultsDir, `${safePathComponent(r.id)}.result.json`), JSON.stringify(r, null, 2), "utf8");
             }
             const md = [
               "# Eval Run Report",
@@ -215,7 +217,6 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
               "| --- | --- | --- | --- | --- |",
               ...results.map((r) => `| ${r.id} | ${r.status} | ${r.expected_tool ?? "-"} | ${r.duration_ms ?? "-"} | ${r.failure_reasons?.join("; ") ?? "-"} |`),
             ].join("\n");
-            const reportPath = path.isAbsolute(params.report_path) ? params.report_path : path.join(config.projectRoot, params.report_path);
             await mkdir(path.dirname(reportPath), { recursive: true });
             await writeFile(reportPath, md, "utf8");
           }
@@ -244,7 +245,8 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
     async (params) =>
       toMcpResult(
         await executeToolSafely(ctx("godot_export_eval_report", config), async () => {
-          const resultsDir = path.isAbsolute(params.results_dir) ? params.results_dir : path.join(config.projectRoot, params.results_dir);
+          const resultsDir = resolveProjectRelativePath(params.results_dir, config.projectRoot).absolutePath;
+          const outputPath = resolveProjectRelativePath(params.output_path, config.projectRoot).absolutePath;
           let files: string[] = [];
           try {
             files = (await readdir(resultsDir)).filter((f) => f.endsWith(".result.json"));
@@ -276,7 +278,6 @@ export function registerEvalReportTools(server: McpServer, godot: GodotClient, c
           ].join("\n");
 
           if (!config.security.readOnly) {
-            const outputPath = path.isAbsolute(params.output_path) ? params.output_path : path.join(config.projectRoot, params.output_path);
             await mkdir(path.dirname(outputPath), { recursive: true });
             await writeFile(outputPath, md, "utf8");
           }

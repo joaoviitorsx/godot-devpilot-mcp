@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { resolveProjectRelativePath } from "../safety/pathGuard.js";
 import { z } from "zod";
 
 import type { ServerConfig } from "../config/config.js";
@@ -143,7 +144,7 @@ export function registerQaAuditTools(server: McpServer, godot: GodotClient, conf
           ].join("\n");
 
           if (!config.security.readOnly) {
-            const reportPath = path.isAbsolute(params.report_path) ? params.report_path : path.join(config.projectRoot, params.report_path);
+            const reportPath = resolveProjectRelativePath(params.report_path, config.projectRoot).absolutePath;
             await mkdir(path.dirname(reportPath), { recursive: true });
             await writeFile(reportPath, md, "utf8");
           }
@@ -253,7 +254,7 @@ export function registerQaAuditTools(server: McpServer, godot: GodotClient, conf
           ].join("\n");
 
           if (!config.security.readOnly) {
-            const reportPath = path.isAbsolute(params.report_path) ? params.report_path : path.join(config.projectRoot, params.report_path);
+            const reportPath = resolveProjectRelativePath(params.report_path, config.projectRoot).absolutePath;
             await mkdir(path.dirname(reportPath), { recursive: true });
             await writeFile(reportPath, md, "utf8");
           }

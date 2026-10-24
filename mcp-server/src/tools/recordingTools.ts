@@ -8,6 +8,7 @@ import type { ServerConfig } from "../config/config.js";
 import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { resolveProjectRelativePath, safePathComponent } from "../safety/pathGuard.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -26,11 +27,11 @@ async function callRpc(godot: GodotClient, method: string, params: unknown = {})
 }
 
 function recordingsDir(projectRoot: string): string {
-  return path.join(projectRoot, ".godot_mcp", "recordings");
+  return resolveProjectRelativePath(".godot_mcp/recordings", projectRoot).absolutePath;
 }
 
 function recordingPath(projectRoot: string, name: string): string {
-  return path.join(recordingsDir(projectRoot), `${name}.json`);
+  return resolveProjectRelativePath(`.godot_mcp/recordings/${safePathComponent(name)}.json`, projectRoot).absolutePath;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -40,7 +41,7 @@ function sleep(ms: number): Promise<void> {
 const InputEventSchema = z.object({
   type: z.enum(["press_key", "release_key", "tap_key", "press_action", "release_action", "mouse_click", "mouse_move", "mouse_drag"]),
   delay_ms: z.number().int().min(0).optional().default(0),
-  params: z.record(z.unknown()).default({}),
+  params: z.record(z.string(), z.unknown()).default({}),
 });
 
 type InputEvent = z.infer<typeof InputEventSchema>;

@@ -6,6 +6,11 @@ import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { inferInputActions, inferAutoloads } from "./inferTools.js";
+import { indexProject, checkConventions, buildProjectSummary } from "../indexer/projectIndexer.js";
+import { readRunReportEvents } from "./debugTools.js";
+import { safePathComponent } from "../safety/pathGuard.js";
+import { callLocalTool } from "./localTool.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -14,6 +19,17 @@ function toMcpResult(r: ToolResponse): CallToolResult {
 async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
   if (!godot.getStatus().connected) { const c = await godot.connect(); if (!c.ok) return c; }
   return godot.call(method, params);
+}
+
+async function getReleaseChecklist(projectRoot: string): Promise<ToolResponse> {
+  const summary = await buildProjectSummary(projectRoot);
+  const checks = [
+    { item: "Main scene configured", passed: summary.main_scene !== null },
+    { item: "At least one scene", passed: summary.scenes > 0 },
+    { item: "At least one script", passed: summary.scripts > 0 }
+  ];
+  const passed = checks.filter((check) => check.passed).length;
+  return createSuccessResponse({ passed, total: checks.length, checks, blockers: checks.filter((check) => !check.passed).map((check) => check.item) });
 }
 
 function ctx(toolName: string, config: ServerConfig) {
@@ -68,7 +84,8 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
       toMcpResult(
         await executeToolSafely(ctx("devpilot_build_feature", config), async (): Promise<ToolResponse> => {
           const isDryRun = dry_run !== false;
-          const shouldGenerateTest = generate_test !== false;
+          safePathComponent(feature_name);
+          const shouldGenerateTest = generate_test !== false && kind !== "script_only";
 
           // Resolve default base node by kind
           const defaultBase = kind === "ui_panel" ? "Control"
@@ -94,7 +111,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
             plan.push(`Validate scene: ${scenePath}`);
           }
           if (shouldGenerateTest) {
-            plan.push(`Run project (2 s) → capture runtime tree → stop`);
+            plan.push(`Run scene (2 s) → capture runtime tree → stop`);
             plan.push(`Generate test scenario: ${testScenarioName}`);
           }
 
@@ -120,19 +137,19 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           // Step 1: Project doctor (errors only)
           const steps: StepResult[] = [];
           await runStep(steps, "project_doctor: get_debugger_errors", () =>
-            callAfterConnect(godot, "debug.get_debugger_errors", {})
+            callLocalTool(server, "godot_get_debugger_errors", {})
           );
 
           // Step 2-3: Create + open scene (if applicable)
           if (kind !== "script_only") {
             const createResult = await runStep(steps, `scene.create: ${scenePath}`, () =>
-              callAfterConnect(godot, "scene.create", { scene_path: scenePath, root_type: baseType, root_name: feature_name })
+              callAfterConnect(godot, "scene.create", { path: scenePath, root_type: baseType, root_name: feature_name })
             );
             if (!createResult.ok) {
               return buildErrorReport(steps, plan, feature_name, "Scene creation failed.");
             }
             const openResult = await runStep(steps, `scene.open: ${scenePath}`, () =>
-              callAfterConnect(godot, "scene.open", { scene_path: scenePath })
+              callAfterConnect(godot, "scene.open", { path: scenePath })
             );
             if (!openResult.ok) {
               return buildErrorReport(steps, plan, feature_name, "Scene open failed.");
@@ -141,7 +158,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 4: Create script
           const scriptResult = await runStep(steps, `script.create: ${scriptPath}`, () =>
-            callAfterConnect(godot, "script.create", { path: scriptPath, extends: baseType, description: description ?? "" })
+            callLocalTool(server, "godot_create_script", { path: scriptPath, extends: baseType, content: description ? `# ${description.replace(/\r?\n/g, " ")}\n` : undefined })
           );
           if (!scriptResult.ok) {
             return buildErrorReport(steps, plan, feature_name, "Script creation failed.");
@@ -160,7 +177,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
             // Step 7: Validate scene
             await runStep(steps, "scene.validate", () =>
-              callAfterConnect(godot, "scene.validate", { scene_path: scenePath })
+              callAfterConnect(godot, "scene.validate", { path: scenePath })
             );
           }
 
@@ -176,39 +193,33 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           }
 
           if (shouldGenerateTest) {
-            // Run project
-            await runStep(steps, "debug.run_project", () =>
-              callAfterConnect(godot, "debug.run_project", {})
+            const runResult = await runStep(steps, "debug.run_scene", () =>
+              callAfterConnect(godot, "debug.run_scene", { scene_path: scenePath })
             );
-            await sleep(2000);
-
-            // Capture runtime tree
-            await runStep(steps, "runtime.get_tree", () =>
-              callAfterConnect(godot, "runtime.get_tree", {})
-            );
-
-            // Stop project
-            await runStep(steps, "debug.stop_project", () =>
-              callAfterConnect(godot, "debug.stop_project", {})
-            );
-
-            // Generate test scenario
-            const testResult = await runStep(steps, `test.create_scenario: ${testScenarioName}`, () =>
-              callAfterConnect(godot, "test.create_scenario", {
-                name: testScenarioName,
-                scene_path: scenePath,
-                description: description ?? `Behavior test for ${feature_name}`
-              })
-            );
-            if (testResult.ok) {
-              testsGenerated.push(testScenarioName);
+            if (runResult.ok) {
+              await sleep(2000);
+              await runStep(steps, "runtime.get_tree", () =>
+                callAfterConnect(godot, "runtime.get_tree", {})
+              );
+              await runStep(steps, "debug.stop_project", () =>
+                callAfterConnect(godot, "debug.stop_project", {})
+              );
+              const testResult = await runStep(steps, `test.create_scenario: ${testScenarioName}`, () =>
+                callAfterConnect(godot, "test.create_scenario", {
+                  name: testScenarioName,
+                  scene_path: scenePath,
+                  description: description ?? `Behavior test for ${feature_name}`,
+                  steps: [{ name: "root_exists", type: "assert_node_exists", params: { node_path: `/root/${feature_name}` } }]
+                })
+              );
+              if (testResult.ok) testsGenerated.push(testScenarioName);
             }
           }
 
           // Collect runtime errors from steps
-          const runStep_ = steps.find(s => s.step === "debug.run_project");
+          const runStep_ = steps.find(s => s.step === "debug.run_scene");
           if (runStep_ && !runStep_.ok) {
-            runtimeErrors.push("Project failed to run.");
+            runtimeErrors.push("Scene failed to run.");
           }
 
           const failedCount = steps.filter(s => !s.ok).length;
@@ -274,7 +285,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 1: Get debugger errors
           const debugErrorsResult = await runStep(steps, "debug.get_debugger_errors", () =>
-            callAfterConnect(godot, "debug.get_debugger_errors", {})
+            callLocalTool(server, "godot_get_debugger_errors", {})
           );
 
           const errorsBeforeRaw = debugErrorsResult.ok
@@ -287,16 +298,13 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           // Step 2: Parse errors if script_path given
           if (script_path) {
             await runStep(steps, `debug.get_script_parse_errors: ${script_path}`, () =>
-              callAfterConnect(godot, "debug.get_script_parse_errors", { script_path })
+              callLocalTool(server, "godot_get_script_parse_errors", { path: script_path })
             );
           }
 
           // Step 3: Dry-run fix preview
-          const previewParams: Record<string, unknown> = { dry_run: true };
-          if (script_path) previewParams.script_path = script_path;
-
           const previewResult = await runStep(steps, "script.fix_errors (dry_run=true)", () =>
-            callAfterConnect(godot, "script.fix_errors", previewParams)
+            callLocalTool(server, "godot_fix_errors", { path: script_path, dry_run: true })
           );
 
           if (isDryRun) {
@@ -324,18 +332,14 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           }
 
           // Step 4: Apply fix
-          const applyParams: Record<string, unknown> = { dry_run: false };
-          if (script_path) applyParams.script_path = script_path;
-
           const applyResult = await runStep(steps, "script.fix_errors (dry_run=false)", () =>
-            callAfterConnect(godot, "script.fix_errors", applyParams)
+            callLocalTool(server, "godot_fix_errors", { path: script_path, dry_run: false })
           );
 
           const filesModified: string[] = [];
-          if (applyResult.ok && Array.isArray((applyResult.data as any)?.fixed_scripts)) {
-            filesModified.push(...(applyResult.data as any).fixed_scripts);
-          } else if (script_path) {
-            filesModified.push(script_path);
+          if (applyResult.ok && Array.isArray((applyResult.data as any)?.applied_patches)) {
+            const appliedPaths = (applyResult.data as { applied_patches: Array<{ script_path: string }> }).applied_patches.map((patch) => patch.script_path);
+            filesModified.push(...new Set(appliedPaths));
           }
 
           // Step 5: Validate each fixed script
@@ -358,7 +362,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
             await sleep(2000);
 
             const afterErrorsResult = await runStep(steps, "debug.get_debugger_errors (after)", () =>
-              callAfterConnect(godot, "debug.get_debugger_errors", {})
+              callLocalTool(server, "godot_get_debugger_errors", {})
             );
 
             await runStep(steps, "debug.stop_project", () =>
@@ -467,7 +471,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 1: Create scene
           const createResult = await runStep(steps, `scene.create: ${scenePath}`, () =>
-            callAfterConnect(godot, "scene.create", { scene_path: scenePath, root_type: "Node2D", root_name: scene_name })
+            callAfterConnect(godot, "scene.create", { path: scenePath, root_type: "Node2D", root_name: scene_name })
           );
           if (!createResult.ok) {
             return buildErrorReport(steps, plan, scene_name, "Scene creation failed.");
@@ -476,7 +480,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 2: Open scene
           await runStep(steps, `scene.open: ${scenePath}`, () =>
-            callAfterConnect(godot, "scene.open", { scene_path: scenePath })
+            callAfterConnect(godot, "scene.open", { path: scenePath })
           );
 
           // Step 3: Create player structure
@@ -492,10 +496,10 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Create player script
           const playerScriptResult = await runStep(steps, `script.create: ${playerScriptPath}`, () =>
-            callAfterConnect(godot, "script.create", {
+            callLocalTool(server, "godot_create_script", {
               path: playerScriptPath,
               extends: "CharacterBody2D",
-              description: `${controllerType} controller for ${scene_name}`
+              content: `# ${controllerType} controller for ${scene_name}\n`
             })
           );
           if (playerScriptResult.ok) filesCreated.push(playerScriptPath);
@@ -558,7 +562,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 9: Validate scene
           const validateResult = await runStep(steps, "scene.validate", () =>
-            callAfterConnect(godot, "scene.validate", { scene_path: scenePath })
+            callAfterConnect(godot, "scene.validate", { path: scenePath })
           );
 
           const failedCount = steps.filter(s => !s.ok).length;
@@ -626,7 +630,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 1: Open scene
           const openResult = await runStep(steps, `scene.open: ${scene_path}`, () =>
-            callAfterConnect(godot, "scene.open", { scene_path })
+            callAfterConnect(godot, "scene.open", { path: scene_path })
           );
           if (!openResult.ok) {
             return buildErrorReport(steps, plan, scene_path, "Failed to open scene for refactor.");
@@ -634,12 +638,12 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 2: Validate current state
           await runStep(steps, "scene.validate (pre-refactor)", () =>
-            callAfterConnect(godot, "scene.validate", { scene_path })
+            callAfterConnect(godot, "scene.validate", { path: scene_path })
           );
 
           // Step 3: Impact check
           const impactResult = await runStep(steps, "intelligence.impact_check", () =>
-            callAfterConnect(godot, "intelligence.impact_check", { path: scene_path })
+            callLocalTool(server, "godot_impact_check", { change_type: "rename_file", target: scene_path })
           );
 
           if (isDryRun) {
@@ -729,7 +733,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 7: Validate post-refactor
           const postValidateResult = await runStep(steps, "scene.validate (post-refactor)", () =>
-            callAfterConnect(godot, "scene.validate", { scene_path })
+            callAfterConnect(godot, "scene.validate", { path: scene_path })
           );
 
           const failedCount = steps.filter(s => !s.ok).length;
@@ -776,6 +780,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
       toMcpResult(
         await executeToolSafely(ctx("devpilot_validate_project", config), async (): Promise<ToolResponse> => {
           const shouldRunGame = run_game !== false;
+          if (config.security.readOnly && shouldRunGame) return createErrorResponse("READ_ONLY_MODE", "Set run_game=false in read-only mode.", {}, []);
           const runDuration = hold_ms ?? 2000;
           const shouldCheckConventions = check_conventions !== false;
 
@@ -783,15 +788,15 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
             "project.get_info — get project summary",
             "batch.find_unused — detect unused resources",
             "batch.detect_circular — detect circular dependencies",
-            "infer.input_map_from_scripts — validate input map",
-            "infer.autoloads_from_scripts — validate autoloads",
+            "server.infer_input_actions — validate input map",
+            "server.infer_autoloads — validate autoloads",
             "project.get_open_scenes — list open scenes",
             "scene.validate — validate each open scene",
-            ...(shouldCheckConventions ? ["intelligence.validate_conventions — check naming conventions"] : []),
+            ...(shouldCheckConventions ? ["server.validate_conventions — check naming conventions"] : []),
             ...(shouldRunGame ? [
               `debug.run_project — run game (${runDuration}ms)`,
               "runtime.get_fps — capture FPS",
-              "debug.get_debugger_errors — capture runtime errors",
+              "server.get_debugger_errors — capture runtime errors",
               "debug.stop_project — stop game"
             ] : [])
           ];
@@ -812,11 +817,11 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           await runStep(steps, "batch.detect_circular", () =>
             callAfterConnect(godot, "batch.detect_circular", {})
           );
-          await runStep(steps, "infer.input_map_from_scripts", () =>
-            callAfterConnect(godot, "infer.input_map_from_scripts", {})
+          await runStep(steps, "server.infer_input_actions", () =>
+            inferInputActions(godot, config.projectRoot)
           );
-          await runStep(steps, "infer.autoloads_from_scripts", () =>
-            callAfterConnect(godot, "infer.autoloads_from_scripts", {})
+          await runStep(steps, "server.infer_autoloads", () =>
+            inferAutoloads(godot, config.projectRoot)
           );
 
           // Step 3: Get open scenes
@@ -834,7 +839,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           let allScenesLoad = true;
           for (const sp of openScenes) {
             const vr = await runStep(steps, `scene.validate: ${sp}`, () =>
-              callAfterConnect(godot, "scene.validate", { scene_path: sp })
+              callAfterConnect(godot, "scene.validate", { path: sp })
             );
             if (!vr.ok) allScenesLoad = false;
             scenesModified.push(sp);
@@ -842,8 +847,8 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 5: Conventions check
           if (shouldCheckConventions) {
-            await runStep(steps, "intelligence.validate_conventions", () =>
-              callAfterConnect(godot, "intelligence.validate_conventions", {})
+            await runStep(steps, "server.validate_conventions", async () =>
+              createSuccessResponse({ violations: checkConventions(await indexProject(config.projectRoot)) })
             );
           }
 
@@ -862,8 +867,8 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
               fps = (fpsResult.data as any)?.fps ?? null;
             }
 
-            const errorsResult = await runStep(steps, "debug.get_debugger_errors (runtime)", () =>
-              callAfterConnect(godot, "debug.get_debugger_errors", {})
+            const errorsResult = await runStep(steps, "server.get_debugger_errors (runtime)", async () =>
+              createSuccessResponse({ errors: await readRunReportEvents(config.projectRoot, 50, ["error"]) })
             );
             if (errorsResult.ok && Array.isArray((errorsResult.data as any)?.errors)) {
               runtimeErrors.push(...(errorsResult.data as any).errors.map((e: unknown) => String(e)));
@@ -897,10 +902,12 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
           return createSuccessResponse(
             {
               ...report,
+              passed: failedCount === 0 && runtimeErrors.length === 0,
+              health_score: Math.max(0, Math.round(100 * (steps.length - failedCount) / Math.max(1, steps.length))),
               scenes_validated: openScenes,
               fps,
               doctor_steps: steps
-                .filter(s => ["batch.find_unused", "batch.detect_circular", "infer.input_map_from_scripts", "infer.autoloads_from_scripts"].some(m => s.step.includes(m)))
+                .filter(s => ["batch.find_unused", "batch.detect_circular", "server.infer_input_actions", "server.infer_autoloads"].some(m => s.step.includes(m)))
                 .map(s => ({ check: s.step, ok: s.ok, data: s.data }))
             },
             report.summary,
@@ -975,7 +982,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
 
           // Step 3: Release checklist
           const checklistResult = await runStep(steps, "release.checklist", () =>
-            callAfterConnect(godot, "release.checklist", {})
+            getReleaseChecklist(config.projectRoot)
           );
 
           let checklistPassed = 0;
@@ -1000,7 +1007,7 @@ export function registerWorkflowTools(server: McpServer, godot: GodotClient, con
               await sleep(runDuration);
 
               const errorsResult = await runStep(steps, "debug.get_debugger_errors (release)", () =>
-                callAfterConnect(godot, "debug.get_debugger_errors", {})
+                callLocalTool(server, "godot_get_debugger_errors", {})
               );
               if (errorsResult.ok && Array.isArray((errorsResult.data as any)?.errors)) {
                 const errs = (errorsResult.data as any).errors as unknown[];

@@ -12,6 +12,7 @@ import { executePromptWorkflow } from "../workflows/prompt/promptExecutor.js";
 import { writeReport } from "../workflows/prompt/workflowReporter.js";
 import { WORKFLOW_MODES, type WorkflowMode } from "../workflows/prompt/workflowTypes.js";
 import { loadPersistedPlan, parsePromptToPlan } from "./prototypeTools.js";
+import { callLocalTool } from "./localTool.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -112,13 +113,13 @@ export function registerGameLauncherTools(server: McpServer, godot: GodotClient,
             }
           }
 
-          // Auto-lint pass: query Godot for static parse errors. If any, surface
+          // Auto-lint pass: scan project scripts for known static parse errors. If any, surface
           // them on the result so the caller knows the prototype is not yet runnable
           // even if all RPC steps succeeded.
           let parseErrorCount = 0;
-          if (!dryRun && godot.getStatus().connected) {
+          if (!dryRun) {
             try {
-              const parseRes = await godot.call("static.get_script_parse_errors", {});
+              const parseRes = await callLocalTool(server, "godot_get_script_parse_errors", { include_warnings: false });
               if (parseRes.ok && parseRes.data && typeof parseRes.data === "object") {
                 const data = parseRes.data as { error_count?: number; parse_errors?: unknown[] };
                 parseErrorCount = data.error_count ?? (Array.isArray(data.parse_errors) ? data.parse_errors.length : 0);
@@ -127,7 +128,7 @@ export function registerGameLauncherTools(server: McpServer, godot: GodotClient,
                 }
               }
             } catch {
-              /* parse-error RPC is optional; ignore failures */
+              /* Preserve the workflow result if the supplemental scan fails. */
             }
           }
 

@@ -6,6 +6,7 @@ import type { GodotClient } from "../godot/client.js";
 import { createSuccessResponse, type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely, type ToolExecutionContext } from "../safety/toolWrapper.js";
+import { safePathComponent } from "../safety/pathGuard.js";
 
 function toMcpResult(response: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }], isError: !response.ok };
@@ -38,6 +39,7 @@ export function registerPhase20Tools(server: McpServer, godot: GodotClient, conf
     },
     async ({ duration_ms = 3000, watch_nodes = [], watch_properties = ["visible", "position", "scale"], include_fps = true, fps_min_threshold = 20, scenario_name, overwrite, dry_run }) => {
       const result = await executeToolSafely(ctx("godot_generate_test_from_behavior", config), async (): Promise<ToolResponse> => {
+        safePathComponent(scenario_name);
         if (dry_run) {
           return createDryRunResponse({
             toolName: "godot_generate_test_from_behavior",
@@ -141,6 +143,7 @@ export function registerPhase20Tools(server: McpServer, godot: GodotClient, conf
           steps,
           overwrite: overwrite ?? false
         });
+        if (!scenarioR.ok) return scenarioR;
 
         const avgFps = fpsSamples.length > 0 ? fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length : null;
 

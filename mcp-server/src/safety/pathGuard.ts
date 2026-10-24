@@ -1,3 +1,4 @@
+import { lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 import { createSafetyError } from "./errors.js";
@@ -71,10 +72,53 @@ export function resolveProjectPath(inputPath: string, projectRoot: string): Reso
     rejectPath(inputPath, absoluteRoot, "resolved path escapes project root");
   }
 
+  // Existing ancestors may be symlinks. Check their real destinations as well as
+  // the lexical path, including when the final file has not been created yet.
+  const realRoot = realpathSync(absoluteRoot);
+  let ancestor = absolutePath;
+  while (true) {
+    try {
+      lstatSync(ancestor);
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) rejectPath(inputPath, absoluteRoot, "path does not have an existing ancestor");
+        ancestor = parent;
+        continue;
+      }
+      throw error;
+    }
+    let realAncestor: string;
+    try { realAncestor = realpathSync(ancestor); }
+    catch { rejectPath(inputPath, absoluteRoot, "unresolvable symlink"); }
+    const relative = path.relative(realRoot, realAncestor);
+    if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      rejectPath(inputPath, absoluteRoot, "symlink escapes project root");
+    }
+    break;
+  }
+
   return {
     inputPath,
     resPath: `${RES_PREFIX}${normalizedRelativePath}`,
     relativePath: normalizedRelativePath,
     absolutePath
   };
+}
+
+/** Resolve an ordinary project-relative path with the same sandbox rules as res://. */
+export function resolveProjectRelativePath(inputPath: string, projectRoot: string): ResolvedProjectPath {
+  const value = inputPath.trim().replace(/\\/g, "/");
+  if (!value || value.startsWith("/") || /^[a-zA-Z]:/.test(value) || value.includes("://")) {
+    rejectPath(inputPath, path.resolve(projectRoot), "expected a project-relative path");
+  }
+  return resolveProjectPath(value.startsWith(RES_PREFIX) ? value : `${RES_PREFIX}${value}`, projectRoot);
+}
+
+/** Validate a single filename component supplied by a client or a JSON document. */
+export function safePathComponent(value: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(value) || value === "." || value === ".." || value.endsWith(".") || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(value)) {
+    throw createSafetyError("PATH_OUTSIDE_PROJECT", "Invalid file or snapshot name.", { name: value }, ["Use letters, numbers, dots, underscores, or hyphens without path separators."]);
+  }
+  return value;
 }

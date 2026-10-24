@@ -147,11 +147,11 @@ export function registerManifestTools(server: McpServer, config: ServerConfig): 
     {
       patch: z.object({
         generated_files: z.array(z.string()).optional(),
-        scenes: z.record(z.unknown()).optional(),
-        scripts: z.record(z.unknown()).optional(),
-        autoloads: z.record(z.string()).optional(),
+        scenes: z.record(z.string(), z.unknown()).optional(),
+        scripts: z.record(z.string(), z.unknown()).optional(),
+        autoloads: z.record(z.string(), z.string()).optional(),
         blueprints_applied: z.array(z.object({ name: z.string(), params: z.unknown().optional(), at: z.string() })).optional(),
-        signals_map: z.record(z.array(z.string())).optional(),
+        signals_map: z.record(z.string(), z.array(z.string())).optional(),
         notes: z.array(z.string()).optional(),
       }),
     },

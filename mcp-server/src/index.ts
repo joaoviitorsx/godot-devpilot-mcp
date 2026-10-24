@@ -28,6 +28,9 @@ import { registerPhase20Tools } from "./tools/phase20Tools.js";
 import { registerDoctorTools } from "./tools/doctorTools.js";
 import { registerInferTools } from "./tools/inferTools.js";
 import { registerWorkflowTools } from "./tools/workflowTools.js";
+import { registerBetterTileEditorTools } from "./tools/betterTileEditorTools.js";
+import { registerGameContextTools } from "./tools/gameContextTools.js";
+import { registerScene3DAuditTools } from "./tools/scene3dAuditTools.js";
 import { registerDiffTools } from "./tools/diffTools.js";
 import { registerTransactionTools } from "./tools/transactionTools.js";
 import { registerConventionTools } from "./tools/conventionTools.js";
@@ -88,7 +91,7 @@ if (!rootCheck.valid) {
 }
 console.error(`[Godot DevPilot MCP] project root: ${rootCheck.resolvedPath}`);
 
-const godot = new GodotClient(config.godot);
+const godot = new GodotClient(config.godot, { projectRoot: config.projectRoot, pluginVersion: config.server.version, protocolVersion: config.server.protocolVersion });
 
 const server = new McpServer({
   name: config.server.name,
@@ -96,6 +99,9 @@ const server = new McpServer({
 });
 
 registerCoreTools(server, godot, config);
+if (config.mode !== "minimal") {
+registerGameContextTools(server, config);
+registerScene3DAuditTools(server, config);
 registerProjectTools(server, godot, config);
 registerFileTools(server, config);
 registerSceneTools(server, godot, config);
@@ -111,7 +117,23 @@ registerToolkit2dTools(server, godot, config);
 registerToolkit3dTools(server, godot, config);
 registerToolkit13Tools(server, godot, config);
 registerTestTools(server, godot, config);
-registerAgenticTools(server, godot, config);
+registerWizardTools(server, godot, config);
+registerSceneSerializerTools(server, config);
+registerManifestTools(server, config);
+registerBlueprintLibraryTools(server, config);
+registerBlueprintRegistryTools(server, config);
+registerVerifySpecTools(server, config);
+registerPresetTools(server, config);
+registerAutoFixTools(server, godot, config);
+registerSnapshotTools(server, config);
+registerExplainProjectTool(server, config);
+registerRecommendBlueprintsTool(server, config);
+registerQualityTools(server, config);
+registerArchetypeTools(server, config);
+registerHelpTools(server, config);
+registerCompositionTools(server, config);
+}
+if (config.mode === "full" || config.mode === "agentic") {
 registerPhase17Tools(server, godot, config);
 registerPhase18Tools(server, godot, config);
 registerPhase19Tools(server, godot, config);
@@ -119,6 +141,7 @@ registerPhase20Tools(server, godot, config);
 registerDoctorTools(server, godot, config);
 registerInferTools(server, godot, config);
 registerWorkflowTools(server, godot, config);
+registerBetterTileEditorTools(server, godot, config);
 registerDiffTools(server, godot, config);
 registerTransactionTools(server, godot, config);
 registerConventionTools(server, godot, config);
@@ -140,27 +163,12 @@ registerGameFeelTools(server, godot, config);
 registerQaAuditTools(server, godot, config);
 registerPromptWorkflowTools(server, godot, config);
 registerGameLauncherTools(server, godot, config);
-registerWizardTools(server, godot, config);
-registerSceneSerializerTools(server, config);
-registerManifestTools(server, config);
-registerBlueprintLibraryTools(server, config);
-registerBlueprintRegistryTools(server, config);
-registerVerifySpecTools(server, config);
-registerPresetTools(server, config);
-registerAutoFixTools(server, godot, config);
 registerBlueprintLibrary3DTools(server, config);
 registerTilemapAndDungeonTools(server, config);
 registerBlueprintLibraryRPGTools(server, config);
 registerBlueprintLibraryAVTools(server, config);
-registerSnapshotTools(server, config);
-registerExplainProjectTool(server, config);
-registerRecommendBlueprintsTool(server, config);
 registerAutoWireSignalsTool(server, config);
-registerQualityTools(server, config);
 registerBlueprintLibraryGenresTools(server, config);
-registerArchetypeTools(server, config);
-registerHelpTools(server, config);
-registerCompositionTools(server, config);
 registerTierAndCustomTools(server, config);
 registerBlueprintLibraryAdvancedTools(server, config);
 registerAssetAndExportTools(server, config);
@@ -171,6 +179,10 @@ registerBlueprintLibraryGenresExtraTools(server, config);
 registerSaveAchievementsTools(server, godot, config);
 registerCsharpAndAdvancedTools(server, config);
 registerVTools(server, config);
+}
+if (config.mode === "agentic") {
+  registerAgenticTools(server, godot, config);
+}
 
 void godot.connect().then((initialConnection) => {
   if (!initialConnection.ok) {

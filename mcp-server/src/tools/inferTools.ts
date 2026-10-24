@@ -173,6 +173,25 @@ function extractActionsWithEvents(inputMapData: unknown): Map<string, number> {
   return map;
 }
 
+/** Server-side inference shared by the standalone tools and workflows. */
+export async function inferInputActions(godot: GodotClient, projectRoot: string): Promise<ToolResponse> {
+  const gdFiles = await findGdFiles(projectRoot);
+  const found = [...new Set((await Promise.all(gdFiles.map(extractActionsFromFile))).flat())].sort();
+  const response = await callAfterConnect(godot, "project.get_input_map", {});
+  if (!response.ok) return response;
+  const registered = extractRegisteredActionNames(response.data);
+  return createSuccessResponse({ found_in_scripts: found, registered_actions: registered, missing_actions: found.filter((name) => !registered.includes(name)) });
+}
+
+export async function inferAutoloads(godot: GodotClient, projectRoot: string): Promise<ToolResponse> {
+  const gdFiles = await findGdFiles(projectRoot);
+  const found = [...new Set((await Promise.all(gdFiles.map(extractSingletonsFromFile))).flat())].sort();
+  const response = await callAfterConnect(godot, "project.get_autoloads", {});
+  if (!response.ok) return response;
+  const registered = extractRegisteredAutoloadNames(response.data);
+  return createSuccessResponse({ found_in_scripts: found, registered_autoloads: registered, missing_singletons: found.filter((name) => !registered.includes(name)) });
+}
+
 // ── registerInferTools ───────────────────────────────────────────────────────
 
 export function registerInferTools(server: McpServer, godot: GodotClient, config: ServerConfig): void {
@@ -187,6 +206,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
     },
     async ({ auto_add, dry_run }) => toMcpResult(
       await executeToolSafely(ctx("godot_infer_input_map_from_scripts", config), async (): Promise<ToolResponse> => {
+        if (config.security.readOnly && auto_add) return createErrorResponse("READ_ONLY_MODE", "auto_add requires write access.", {}, []);
         const gdFiles = await findGdFiles(config.projectRoot);
 
         const actionSets = await Promise.all(gdFiles.map(f => extractActionsFromFile(f)));

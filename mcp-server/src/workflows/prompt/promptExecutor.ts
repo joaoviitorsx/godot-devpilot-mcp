@@ -4,6 +4,7 @@ import path from "node:path";
 import type { ServerConfig } from "../../config/config.js";
 import type { GodotClient } from "../../godot/client.js";
 import { callAfterConnect } from "../../tools/agenticTools.js";
+import { readRunReportEvents, type RunReportEventType } from "../../tools/debugTools.js";
 import {
   applyPlan,
   parsePromptToPlan,
@@ -124,6 +125,12 @@ async function runRpcStep(godot: GodotClient, executed: ExecutedStep, method: st
   return r.data;
 }
 
+async function runReportStep(projectRoot: string, executed: ExecutedStep, type: RunReportEventType): Promise<unknown[]> {
+  const events = await readRunReportEvents(projectRoot, 100, [type]);
+  executed.tools_called.push(`server:run_reports:${type}`);
+  return events;
+}
+
 export async function executePromptWorkflow(
   prompt: string,
   plan: WorkflowPlan,
@@ -181,19 +188,19 @@ export async function executePromptWorkflow(
       await runCreate(prompt, plan, options, godot, config, result);
       break;
     case "CONTINUE":
-      await runContinue(plan, options, godot, result);
+      await runContinue(plan, options, godot, config, result);
       break;
     case "ADD_FEATURE":
-      await runAddFeature(plan, godot, result);
+      await runAddFeature(plan, godot, config, result);
       break;
     case "FIX_BUG":
-      await runFixBug(plan, godot, result);
+      await runFixBug(plan, godot, config, result);
       break;
     case "POLISH":
-      await runPolish(plan, godot, result);
+      await runPolish(plan, godot, config, result);
       break;
     case "VALIDATE":
-      await runValidate(plan, godot, result);
+      await runValidate(plan, godot, config, result);
       break;
   }
 
@@ -204,7 +211,7 @@ export async function executePromptWorkflow(
   result.modified_files = mergeUnique(result.modified_files, diff.modified);
 
   if (options.validate_after && plan.mode !== "VALIDATE") {
-    await runValidationStep(godot, result);
+    await runValidationStep(godot, config, result);
   }
 
   result.success = result.errors.length === 0 && result.executed_steps.every((s) => s.success || !planStepRequired(plan, s.id));
@@ -279,7 +286,7 @@ async function runCreate(
   if (options.validate_after) {
     const runR = await runRpcStep(godot, valStep, "debug.run_project", {});
     await new Promise((r) => setTimeout(r, 2000));
-    const logs = await runRpcStep(godot, valStep, "debug.get_output_logs", {});
+    const logs = await runReportStep(config.projectRoot, valStep, "output");
     await runRpcStep(godot, valStep, "debug.stop_project", {});
     valStep.data = { run: runR, logs };
   } else {
@@ -292,11 +299,12 @@ async function runContinue(
   plan: WorkflowPlan,
   options: ExecutionOptions,
   godot: GodotClient,
+  config: ServerConfig,
   result: WorkflowExecutionResult,
 ): Promise<void> {
   // 1. Diagnose (always required)
   const diag = makeStep(plan, "diagnose");
-  const errors = await runRpcStep(godot, diag, "debug.get_debugger_errors", {});
+  const errors = await runReportStep(config.projectRoot, diag, "error");
   const info = await runRpcStep(godot, diag, "project.get_info", {});
   diag.data = { errors, project_info: info };
   result.executed_steps.push(diag);
@@ -318,16 +326,16 @@ async function runContinue(
   // 4. Validation
   const val = makeStep(plan, "validation");
   if (options.validate_after) {
-    await runValidationRpcs(godot, val);
+    await runValidationRpcs(godot, config, val);
   } else {
     val.warnings.push("validate_after=false: skipped");
   }
   result.executed_steps.push(val);
 }
 
-async function runAddFeature(plan: WorkflowPlan, godot: GodotClient, result: WorkflowExecutionResult): Promise<void> {
+async function runAddFeature(plan: WorkflowPlan, godot: GodotClient, config: ServerConfig, result: WorkflowExecutionResult): Promise<void> {
   const diag = makeStep(plan, "diagnose");
-  const errors = await runRpcStep(godot, diag, "debug.get_debugger_errors", {});
+  const errors = await runReportStep(config.projectRoot, diag, "error");
   diag.data = { errors };
   result.executed_steps.push(diag);
 
@@ -338,18 +346,18 @@ async function runAddFeature(plan: WorkflowPlan, godot: GodotClient, result: Wor
   result.executed_steps.push(feat);
 
   const val = makeStep(plan, "validation");
-  await runValidationRpcs(godot, val);
+  await runValidationRpcs(godot, config, val);
   result.executed_steps.push(val);
 }
 
-async function runFixBug(plan: WorkflowPlan, godot: GodotClient, result: WorkflowExecutionResult): Promise<void> {
+async function runFixBug(plan: WorkflowPlan, godot: GodotClient, config: ServerConfig, result: WorkflowExecutionResult): Promise<void> {
   const diag = makeStep(plan, "diagnose");
-  const errors = await runRpcStep(godot, diag, "debug.get_debugger_errors", {});
+  const errors = await runReportStep(config.projectRoot, diag, "error");
   diag.data = { errors };
   result.executed_steps.push(diag);
 
   const logs = makeStep(plan, "logs");
-  const out = await runRpcStep(godot, logs, "debug.get_output_logs", {});
+  const out = await runReportStep(config.projectRoot, logs, "output");
   logs.data = { output_logs: out };
   result.executed_steps.push(logs);
 
@@ -362,15 +370,15 @@ async function runFixBug(plan: WorkflowPlan, godot: GodotClient, result: Workflo
   const val = makeStep(plan, "validation");
   const run = await runRpcStep(godot, val, "debug.run_project", {});
   await new Promise((r) => setTimeout(r, 2000));
-  const after = await runRpcStep(godot, val, "debug.get_output_logs", {});
+  const after = await runReportStep(config.projectRoot, val, "output");
   await runRpcStep(godot, val, "debug.stop_project", {});
   val.data = { run, logs_after: after };
   result.executed_steps.push(val);
 }
 
-async function runPolish(plan: WorkflowPlan, godot: GodotClient, result: WorkflowExecutionResult): Promise<void> {
+async function runPolish(plan: WorkflowPlan, godot: GodotClient, config: ServerConfig, result: WorkflowExecutionResult): Promise<void> {
   const perf = makeStep(plan, "performance_audit");
-  const stats = await runRpcStep(godot, perf, "debug.get_process_stats", {});
+  const stats = await runRpcStep(godot, perf, "runtime.get_process_stats", {});
   perf.data = { process_stats: stats };
   result.executed_steps.push(perf);
 
@@ -381,20 +389,20 @@ async function runPolish(plan: WorkflowPlan, godot: GodotClient, result: Workflo
   result.executed_steps.push(acc);
 
   const val = makeStep(plan, "validation");
-  await runValidationRpcs(godot, val);
+  await runValidationRpcs(godot, config, val);
   result.executed_steps.push(val);
 }
 
-async function runValidate(plan: WorkflowPlan, godot: GodotClient, result: WorkflowExecutionResult): Promise<void> {
+async function runValidate(plan: WorkflowPlan, godot: GodotClient, config: ServerConfig, result: WorkflowExecutionResult): Promise<void> {
   const doc = makeStep(plan, "doctor");
-  const errors = await runRpcStep(godot, doc, "debug.get_debugger_errors", {});
+  const errors = await runReportStep(config.projectRoot, doc, "error");
   const info = await runRpcStep(godot, doc, "project.get_info", {});
   doc.data = { errors, project_info: info };
   result.validation = extractValidation({ errors: Array.isArray(errors) ? errors : [], project_info: info });
   result.executed_steps.push(doc);
 
   const pipe = makeStep(plan, "validation_pipeline");
-  await runValidationRpcs(godot, pipe);
+  await runValidationRpcs(godot, config, pipe);
   result.executed_steps.push(pipe);
 
   const arch = makeStep(plan, "architecture");
@@ -410,13 +418,13 @@ async function runValidate(plan: WorkflowPlan, godot: GodotClient, result: Workf
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-async function runValidationRpcs(godot: GodotClient, step: ExecutedStep): Promise<void> {
-  const errors = await runRpcStep(godot, step, "debug.get_debugger_errors", {});
+async function runValidationRpcs(godot: GodotClient, config: ServerConfig, step: ExecutedStep): Promise<void> {
+  const errors = await runReportStep(config.projectRoot, step, "error");
   const info = await runRpcStep(godot, step, "project.get_info", {});
   step.data = { errors, project_info: info };
 }
 
-async function runValidationStep(godot: GodotClient, result: WorkflowExecutionResult): Promise<void> {
+async function runValidationStep(godot: GodotClient, config: ServerConfig, result: WorkflowExecutionResult): Promise<void> {
   const step: ExecutedStep = {
     id: "post_validation",
     title: "Post-execution validation",
@@ -425,7 +433,7 @@ async function runValidationStep(godot: GodotClient, result: WorkflowExecutionRe
     warnings: [],
     errors: [],
   };
-  const errors = await runRpcStep(godot, step, "debug.get_debugger_errors", {});
+  const errors = await runReportStep(config.projectRoot, step, "error");
   const info = await runRpcStep(godot, step, "project.get_info", {});
   step.data = { errors, project_info: info };
   result.validation = extractValidation({ errors: Array.isArray(errors) ? errors : [], project_info: info });

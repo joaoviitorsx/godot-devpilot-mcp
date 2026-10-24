@@ -230,7 +230,7 @@ export function registerCompositionTools(server: McpServer, config: ServerConfig
     "Apply a refinement plan: scans current manifest, detects added/removed entities & systems vs the new plan, and executes only the patches needed (calls add_autoload, applies missing blueprints, deletes obsolete files). Pair with devpilot_refine_plan.",
     {
       target_blueprints: z.array(z.string()).describe("Final list of blueprints the project should have."),
-      target_autoloads: z.record(z.string()).optional().describe("Final {name: res:// path} autoload map."),
+      target_autoloads: z.record(z.string(), z.string()).optional().describe("Final {name: res:// path} autoload map."),
       remove_obsolete_files: z.boolean().optional().default(false).describe("If true, delete generated files no longer in target. Destructive — snapshot first."),
     },
     async (params) =>

@@ -4,6 +4,6 @@
   "prompt": "Run a full diagnostic of the current Godot project and tell me what issues exist.",
   "expected_tool": "godot_project_doctor",
   "expected_ok": true,
-  "expected_response_contains": ["health_score", "issues"],
+  "expected_response_contains": ["health_score", "warnings"],
   "tags": ["doctor", "diagnostics"]
 }

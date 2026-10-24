@@ -149,7 +149,7 @@ export function registerScoreTools(server: McpServer, godot: GodotClient, config
     "Capture before snapshot → execute an MCP method via internal RPC → capture after snapshot → return both + delta. Useful for measuring impact of a single operation.",
     {
       method: z.string().describe("Internal RPC method, e.g. 'debug.run_project'"),
-      params: z.record(z.unknown()).optional().default({}),
+      params: z.record(z.string(), z.unknown()).optional().default({}),
     },
     async (input) =>
       toMcpResult(

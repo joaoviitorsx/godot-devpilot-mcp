@@ -4,6 +4,23 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [Unreleased]
+
+### Added
+- Installer for Claude Code and Codex, release archive with SHA-256 checksum, CI validation, and Graphify setup guide.
+- Optional Better Tile Editor bridge for terrain discovery, creation, tile assignment and painting in Godot 4.6+, plus TileSet atlas creation from an imported texture.
+- Game-focused MCP resource `godot://project/context`, `devpilot_game_context` tool, and prompts for features, playtesting, and tile-based levels.
+- Optional GUT CLI test runner with bounded output and a documented AI game-development workflow.
+- One-command `install.sh` / `install.ps1` bootstraps and a packable `godopilot` CLI that uses the current game directory, installs a stable project-local runtime, and adds small Claude/Codex project guidance.
+
+### Fixed
+- Project path checks, authenticated editor bridge, snapshot rollback safety, tool modes, evaluation runner, and workflow calls that targeted unavailable Godot methods.
+- Backups before Better Tile Editor changes to TileSet or scene files.
+- Idempotent installation with automatic client detection and Godot plugin activation while preserving existing editor plugins; corrected headless runtime timeout and failure reporting.
+- Scene naming check accepts Godot's recommended `snake_case` filenames.
+
+---
+
 ## [2.6.0] — 2026-10-09 — Blueprint Library + Project Lifecycle
 
 ### Added

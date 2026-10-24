@@ -28,7 +28,7 @@ const NodeSpecSchema: z.ZodType<unknown> = z.lazy(() =>
     type: z.string().optional(),
     instance: z.string().optional(),
     script: z.string().optional(),
-    props: z.record(z.unknown()).optional(),
+    props: z.record(z.string(), z.unknown()).optional(),
     groups: z.array(z.string()).optional(),
     children: z.array(NodeSpecSchema).optional(),
   })
@@ -44,7 +44,7 @@ const SceneSpecSchema = z.object({
   sub_resources: z.array(z.object({
     id: z.string(),
     type: z.string(),
-    props: z.record(z.unknown()).optional(),
+    props: z.record(z.string(), z.unknown()).optional(),
   })).optional(),
   root: NodeSpecSchema,
 });

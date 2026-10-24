@@ -5,10 +5,10 @@
   "expected_tool": "devpilot_build_feature",
   "params": {
     "feature_name": "PlayerController",
-    "scene_path": "res://scenes/player.tscn",
+    "kind": "scene_with_script",
     "dry_run": true
   },
   "expected_ok": true,
-  "expected_response_contains": ["plan", "dry_run"],
+  "expected_response_contains": ["planned_changes", "dry_run"],
   "tags": ["workflow", "dry_run"]
 }

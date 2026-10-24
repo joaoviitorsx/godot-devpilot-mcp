@@ -4,10 +4,12 @@ import { z } from "zod";
 
 import type { ServerConfig } from "../config/config.js";
 import type { GodotClient } from "../godot/client.js";
-import { createSuccessResponse, type ToolResponse } from "../godot/protocol.js";
+import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
 import { buildDependencyGraph, buildSignalMap, indexProject } from "../indexer/projectIndexer.js";
+import { inferInputActions, inferAutoloads } from "./inferTools.js";
+import { readRunReportEvents } from "./debugTools.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -132,13 +134,14 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
       auto_fix = false
     }) => {
       const result = await executeToolSafely(ctx("godot_project_doctor", config), async (): Promise<ToolResponse> => {
+        if (config.security.readOnly && auto_fix) return createErrorResponse("READ_ONLY_MODE", "Automatic fixes are disabled in read-only mode.", {}, []);
         const critical: string[] = [];
         const warnings: string[] = [];
         const suggestions: string[] = [];
         const auto_fix_available: string[] = [];
 
         // 1. Script parse errors via debugger
-        const errorsR = await callAfterConnect(godot, "debug.get_debugger_errors", {});
+        const errorsR = createSuccessResponse({ errors: await readRunReportEvents(config.projectRoot, 50, ["error"]) });
         if (errorsR.ok && errorsR.data) {
           const errors = ((errorsR.data as Record<string, unknown>).errors ?? []) as unknown[];
           for (const e of errors) {
@@ -230,7 +233,7 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
           }
 
           // Infer from scripts — dry run first
-          const inferR = await callAfterConnect(godot, "infer.input_map_from_scripts", { auto_add: false });
+          const inferR = await inferInputActions(godot, config.projectRoot);
           if (inferR.ok && inferR.data) {
             const missing = ((inferR.data as Record<string, unknown>).missing_actions ?? []) as string[];
             for (const m of missing) {
@@ -238,17 +241,17 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
               auto_fix_available.push(`add_input_action:${m}`);
             }
             if (auto_fix && missing.length > 0) {
-              await callAfterConnect(godot, "infer.input_map_from_scripts", { auto_add: true });
+              for (const action of missing) await callAfterConnect(godot, "project.add_input_action", { action_name: action });
             }
           } else if (inputR.ok) {
             // RPC not available — note as suggestion
-            suggestions.push("Could not infer missing input actions from scripts. Check that the Godot plugin supports 'infer.input_map_from_scripts'.");
+            suggestions.push("Could not infer missing input actions from scripts.");
           }
         }
 
         // 5. Autoloads check
         if (include_autoloads) {
-          const inferR = await callAfterConnect(godot, "infer.autoloads_from_scripts", { auto_add: false });
+          const inferR = await inferAutoloads(godot, config.projectRoot);
           if (inferR.ok && inferR.data) {
             const missing = ((inferR.data as Record<string, unknown>).missing_singletons ?? []) as string[];
             for (const m of missing) {
@@ -395,7 +398,7 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
         }
 
         // Step 2: Baseline editor errors (should be empty before run)
-        const preRunErrorsR = await callAfterConnect(godot, "debug.get_debugger_errors", {});
+        const preRunErrorsR = createSuccessResponse({ errors: await readRunReportEvents(config.projectRoot, 50, ["error"]) });
         let preRunErrors: unknown[] = [];
         if (preRunErrorsR.ok && preRunErrorsR.data) {
           preRunErrors = ((preRunErrorsR.data as Record<string, unknown>).errors ?? []) as unknown[];
@@ -476,7 +479,7 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
         }
 
         // Step 8: Capture runtime errors
-        const runtimeErrorsR = await callAfterConnect(godot, "debug.get_debugger_errors", {});
+        const runtimeErrorsR = createSuccessResponse({ errors: await readRunReportEvents(config.projectRoot, 50, ["error"]) });
         let runtimeErrors: unknown[] = [];
         if (runtimeErrorsR.ok && runtimeErrorsR.data) {
           runtimeErrors = ((runtimeErrorsR.data as Record<string, unknown>).errors ?? []) as unknown[];

@@ -1,596 +1,109 @@
-# Installation — Godot DevPilot MCP
+# Instalação — GodoPilot
 
-## 1. Objetivo deste documento
+## Requisitos
 
-Este documento descreve o processo de instalação do **Godot DevPilot MCP**.
+- Godot 4.3 ou superior para abrir o jogo e ativar o plugin de editor.
+- Node.js 22.12 ou superior, com npm, para obter e iniciar o servidor MCP.
+- Claude Code ou Codex CLI, caso queira configuração automática do cliente correspondente.
 
-Ele cobre:
+O servidor roda na sua máquina por stdio. O plugin Godot escuta WebSocket em `127.0.0.1:6505` por padrão. O servidor só inicia quando `GODOT_MCP_PROJECT_ROOT` aponta para uma pasta com `project.godot`.
 
-- Requisitos;
-- Instalação do servidor MCP;
-- Instalação do plugin Godot;
-- Configuração em clientes MCP;
-- Verificação da conexão;
-- Modos de execução;
-- Estrutura esperada após instalação;
-- Problemas comuns de instalação.
+## Instalação em um jogo existente
 
----
+Abra um terminal **dentro da pasta do jogo**, onde está `project.godot`, e use uma linha:
 
-## 2. Requisitos
-
-## 2.1 Godot
-
-Versão recomendada:
-
-```text
-Godot 4.2 ou superior
+```sh
+curl -fsSL https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.sh | sh
 ```
 
-O projeto será desenvolvido com foco em Godot 4.x.
+No Windows PowerShell:
 
-Godot 3.x não é alvo inicial.
-
-## 2.2 Node.js
-
-Versão recomendada:
-
-```text
-Node.js 18 ou superior
+```powershell
+irm https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.ps1 | iex
 ```
 
-Verificar versão:
+O bootstrap usa `npm exec` para obter o pacote do GitHub. O instalador detecta Claude Code e/ou Codex CLI; se nenhum estiver disponível, explica como prosseguir. Ele copia o servidor compilado e instala suas dependências em `.godot_mcp/runtime/` **dentro do jogo**, para que a configuração do cliente continue válida mesmo após limpar o cache do npm. Um arquivo `.gdignore` evita que o Godot importe o runtime como conteúdo do jogo. Copia e ativa `addons/godot_devpilot_mcp`, configura os clientes detectados e acrescenta orientações curtas a `CLAUDE.md` e/ou `AGENTS.md`. Preserva o conteúdo existente nesses arquivos. Cada projeto recebe um nome MCP próprio.
 
-```bash
-node --version
-```
+O padrão do comando curto é **leitura e escrita** com modo `full`, para que a IA possa usar também as ferramentas especializadas. Use `--read-only` se quiser apenas inspeção; `--mode core` reduz o catálogo e `--mode agentic` inclui orquestradores. O script direto `godopilot` também aceita `--dry-run`, `--client claude|codex|both|none` e `--force`. Repetir a instalação com a mesma versão é seguro. Na atualização, o runtime antigo e o addon alterado são preservados em `.godot_mcp/install-backups/`; a primeira ativação do plugin também guarda uma cópia de `project.godot`. Outros plugins habilitados e entradas existentes em `.mcp.json` são preservados. Se `enabled` em `[editor_plugins]` tiver formato desconhecido, o instalador avisa que a ativação deve ser feita no editor.
 
-## 2.3 Gerenciador de pacotes
+Depois, abra o **projeto do jogo** no Godot. No painel Output deve aparecer a porta do WebSocket. O editor gera um token local em `.godot_mcp/bridge-token`, atualizado ao reiniciar o plugin; o instalador adiciona esse arquivo ao `.gitignore` do jogo. Reinicie o cliente de IA ou atualize a lista de servidores e execute `godot_health_check`, depois `devpilot_game_context`. Se a conexão falhar, confira `Project → Project Settings → Plugins` e a saída do editor.
 
-Um dos seguintes:
+Primeiro pedido útil à IA: “Leia `devpilot_game_context`, explique a cena principal e implemente uma pequena funcionalidade jogável. Defina critérios observáveis, valide os arquivos e execute um teste.” O MCP fornece os prompts `devpilot_feature_loop`, `devpilot_playtest_loop` e `devpilot_tile_workflow`; o cliente pode também ler o recurso `godot://project/context`. O modo `full` expõe as ferramentas especializadas, mas o acesso depende dos métodos implementados pela ponte do editor e dos addons opcionais instalados no jogo; ele não representa toda a API interna do Godot. Veja o [fluxo de desenvolvimento com IA](ai_game_development_roadmap.md).
 
-```text
-npm
-pnpm
-yarn
-```
+> O cliente aponta para `.godot_mcp/runtime/dist/index.js` dentro do jogo. Se mover a pasta do jogo para outro caminho, execute novamente o instalador para atualizar os caminhos absolutos da configuração.
 
-Recomendado inicialmente:
+## Configuração dos clientes
 
-```text
-npm
-```
+### Claude Code
 
-## 2.4 Cliente MCP
+`--client claude` cria ou atualiza `.mcp.json` **na raiz do jogo** e acrescenta uma seção curta a `CLAUDE.md`. Claude Code trata o primeiro como configuração de projeto e pode pedir aprovação na primeira execução. Confira com `claude mcp list` ou `/mcp` dentro do Claude Code.
 
-Um cliente compatível com Model Context Protocol.
-
-Exemplos:
-
-```text
-Claude Desktop
-Cursor
-Cline
-Windsurf
-VS Code com suporte MCP
-```
-
-## 2.5 Sistema operacional
-
-Suporte planejado:
-
-```text
-Windows
-Linux
-macOS
-```
-
----
-
-## 3. Estrutura esperada do projeto
-
-Após clonar o repositório, a estrutura esperada é:
-
-```text
-godot-devpilot-mcp/
-├── addons/
-│   └── godot_devpilot_mcp/
-├── mcp-server/
-├── docs/
-├── examples/
-└── tests/
-```
-
-O projeto possui duas partes principais:
-
-```text
-mcp-server/                  Servidor MCP em TypeScript
-addons/godot_devpilot_mcp/   Plugin Godot em GDScript
-```
-
----
-
-## 4. Instalação do servidor MCP
-
-## 4.1 Clonar o repositório
-
-```bash
-git clone https://github.com/seu-usuario/godot-devpilot-mcp.git
-cd godot-devpilot-mcp
-```
-
-## 4.2 Entrar na pasta do servidor
-
-```bash
-cd mcp-server
-```
-
-## 4.3 Instalar dependências
-
-Com npm:
-
-```bash
-npm install
-```
-
-Com pnpm:
-
-```bash
-pnpm install
-```
-
-Com yarn:
-
-```bash
-yarn install
-```
-
-## 4.4 Compilar servidor
-
-```bash
-npm run build
-```
-
-Resultado esperado:
-
-```text
-mcp-server/dist/
-```
-
-## 4.5 Rodar em modo desenvolvimento
-
-```bash
-npm run dev
-```
-
-## 4.6 Rodar em modo produção local
-
-```bash
-npm run start
-```
-
----
-
-## 5. Instalação do plugin Godot
-
-## 5.1 Copiar addon para o projeto Godot
-
-Dentro do seu projeto Godot, deve existir uma pasta:
-
-```text
-addons/
-```
-
-Copie:
-
-```text
-godot-devpilot-mcp/addons/godot_devpilot_mcp
-```
-
-para:
-
-```text
-seu-projeto-godot/addons/godot_devpilot_mcp
-```
-
-Estrutura esperada:
-
-```text
-seu-projeto-godot/
-├── project.godot
-├── addons/
-│   └── godot_devpilot_mcp/
-│       ├── plugin.cfg
-│       ├── plugin.gd
-│       ├── core/
-│       └── tools/
-```
-
-## 5.2 Ativar plugin na Godot
-
-1. Abrir o projeto na Godot.
-2. Ir em:
-
-```text
-Project > Project Settings > Plugins
-```
-
-3. Procurar:
-
-```text
-Godot DevPilot MCP
-```
-
-4. Marcar como ativo.
-
-## 5.3 Verificar porta WebSocket
-
-Por padrão, o plugin deve iniciar na porta:
-
-```text
-6505
-```
-
-Mensagem esperada no Output da Godot:
-
-```text
-[Godot DevPilot MCP] WebSocket iniciado em 127.0.0.1:6505
-```
-
----
-
-## 6. Configuração do cliente MCP
-
-## 6.1 Configuração genérica
-
-Exemplo:
+O instalador escreve uma entrada equivalente a:
 
 ```json
 {
   "mcpServers": {
-    "godot-devpilot-mcp": {
-      "command": "node",
-      "args": [
-        "C:/caminho/godot-devpilot-mcp/mcp-server/dist/index.js"
-      ],
+    "godot-devpilot-meu-jogo-id": {
+      "type": "stdio",
+      "command": "/caminho/para/node",
+      "args": ["/caminho/do/jogo/.godot_mcp/runtime/dist/index.js"],
       "env": {
-        "GODOT_MCP_HOST": "127.0.0.1",
-        "GODOT_MCP_PORT": "6505",
-        "GODOT_MCP_MODE": "core"
+        "GODOT_MCP_PROJECT_ROOT": "/caminho/absoluto/meu-jogo",
+        "GODOT_MCP_READ_ONLY": "false",
+        "GODOT_MCP_MODE": "full"
       }
     }
   }
 }
 ```
 
-No Linux/macOS:
+Para Claude Desktop, copie essa entrada `mcpServers` para a configuração MCP do aplicativo; o instalador não altera as preferências do Desktop.
 
-```json
-{
-  "mcpServers": {
-    "godot-devpilot-mcp": {
-      "command": "node",
-      "args": [
-        "/home/user/godot-devpilot-mcp/mcp-server/dist/index.js"
-      ],
-      "env": {
-        "GODOT_MCP_HOST": "127.0.0.1",
-        "GODOT_MCP_PORT": "6505",
-        "GODOT_MCP_MODE": "core"
-      }
-    }
-  }
-}
-```
+### Codex
 
-## 6.2 Variáveis de ambiente
+`--client codex` chama `codex mcp add` e grava o servidor nas configurações do Codex do usuário. O instalador também acrescenta uma seção curta a `AGENTS.md` para a IA descobrir o MCP ao iniciar uma nova sessão no jogo. Verifique com `codex mcp list`. Para remover, use `codex mcp remove <nome exibido pelo instalador>`. Se usar outro computador ou ambiente remoto, instale o servidor nesse ambiente e configure o cliente lá; o WebSocket `127.0.0.1` precisa alcançar o editor Godot local.
+
+## Opções do instalador
 
 ```text
-GODOT_MCP_HOST       Host do plugin Godot. Padrão: 127.0.0.1
-GODOT_MCP_PORT       Porta WebSocket. Padrão: 6505
-GODOT_MCP_MODE       minimal, core, full ou agentic
-GODOT_MCP_READONLY   true ou false
-GODOT_MCP_LOG_LEVEL  debug, info, warn ou error
+--project <pasta>  raiz do jogo contendo project.godot (padrão: pasta atual)
+--client <nome>    auto | claude | codex | both | none (padrão: auto)
+--read-only        impede que as ferramentas modifiquem o jogo
+--mode <nome>      minimal | core | full | agentic (padrão: full)
+--force            substitui o addon anterior com backup
+--skip-build       utiliza um dist/index.js já compilado
+--dry-run          valida e exibe o plano sem modificar arquivos
+--help             mostra a ajuda
 ```
 
-## 6.3 Modos disponíveis
+## Instalação manual
 
-```text
-minimal   ferramentas essenciais
-core      modo recomendado para desenvolvimento diário
-full      todas as ferramentas granulares
-agentic   ferramentas compostas e de alto nível
-```
+Se preferir configurar sem o instalador:
 
-Exemplo:
+1. Em `mcp-server/`, execute `npm ci` e `npm run build`.
+2. Copie `addons/godot_devpilot_mcp/` para `addons/` do seu jogo.
+3. Ative o plugin no editor Godot.
+4. Configure um servidor MCP stdio com comando `node`, argumento absoluto `mcp-server/dist/index.js` e variáveis `GODOT_MCP_PROJECT_ROOT` e `GODOT_MCP_READ_ONLY`.
 
-```json
-{
-  "GODOT_MCP_MODE": "minimal"
-}
-```
+Variáveis opcionais: `GODOT_MCP_HOST` (padrão `127.0.0.1`), `GODOT_MCP_PORT` (padrão `6505`), `GODOT_MCP_MODE` (`minimal`, `core`, `full` ou `agentic`) e `GODOT_MCP_TIMEOUT_MS` (padrão `5000`). Se mudar a porta no cliente, configure a mesma porta em `godot_devpilot_mcp/server/port` nas configurações do projeto Godot. O plugin aceita apenas loopback. Na instalação manual, adicione `/.godot_mcp/bridge-token` ao `.gitignore` do jogo.
 
----
+## Pacote de distribuição
 
-## 7. Verificação da instalação
+O pacote npm é gerado por `npm pack` e contém o comando `godopilot`. Para testar localmente antes da publicação, execute `npm pack --pack-destination release` neste repositório; dentro do jogo, rode `npm exec --yes --package="/caminho/para/release/godopilot-mcp-2.6.0.tgz" -- godopilot`. O pacote não requer checkout Git no computador do jogador. A publicação no registro npm permitiria `npx godopilot-mcp` no futuro; **este nome ainda não foi publicado**.
 
-## 7.1 Checklist
+O arquivo de release tradicional continua disponível: `node scripts/package-release.mjs` produz `release/godot-devpilot-mcp-v<versão>.tar.gz` com SHA-256. Após extrair, execute `node /caminho/da/extracao/bin/godopilot.mjs` dentro da pasta do jogo.
 
-```text
-[ ] Node.js instalado
-[ ] Dependências instaladas
-[ ] Servidor compilado
-[ ] Plugin copiado para addons/
-[ ] Plugin ativado na Godot
-[ ] Porta 6505 iniciada
-[ ] Cliente MCP configurado
-[ ] health_check funcionando
-```
+Para trabalhar com terrenos e tiles, veja a [integração opcional com Better Tile Editor](better_tile_editor.md). Ela exige Godot 4.6+; o addon externo é instalado separadamente no jogo.
 
-## 7.2 Teste pelo cliente de IA
+## Verificação e problemas comuns
 
-Solicite ao assistente:
+No repositório, `npm test` em `mcp-server/` executa os testes do servidor. O instalador também possui `node --test scripts/install.test.mjs`. Com o editor aberto, `node evals/runner.js --all --project "/caminho/do/jogo"` executa os casos MCP e grava os resultados em `evals/results/`. A CI baixa o editor Godot oficial, verifica os scripts e realiza um teste de conexão autenticada.
 
-```text
-Verifique a conexão com a Godot.
-```
+- `project.godot missing`: execute o comando dentro da raiz do jogo, e não em `addons/` ou `scenes/`.
+- MCP inicia, mas `godot_health_check` não conecta: abra o mesmo jogo no editor, habilite o plugin e confirme host/porta em ambos os lados.
+- `BRIDGE_TOKEN_MISSING` ou `BRIDGE_MISMATCH`: confirme que o editor abriu o mesmo projeto, com a mesma versão do addon, e reinicie o plugin e o cliente MCP.
+- Plugin não aparece: confirme `addons/godot_devpilot_mcp/plugin.cfg` dentro do jogo.
+- `dist/index.js` ausente: execute o instalador sem `--skip-build`.
+- Cliente parou após mover o jogo: execute o instalador novamente no novo caminho.
 
-A ferramenta esperada:
-
-```text
-godot_health_check
-```
-
-Resposta esperada:
-
-```json
-{
-  "ok": true,
-  "data": {
-    "connected": true
-  },
-  "message": "Godot DevPilot MCP conectado.",
-  "warnings": [],
-  "suggestions": []
-}
-```
-
-## 7.3 Teste de contexto do projeto
-
-Solicite:
-
-```text
-Mostre as informações do projeto Godot aberto.
-```
-
-Ferramenta esperada:
-
-```text
-godot_get_project_info
-```
-
----
-
-## 8. Estrutura criada no projeto Godot
-
-Durante o uso, o plugin/servidor pode criar:
-
-```text
-.godot_mcp/
-├── backups/
-├── logs/
-├── trash/
-├── screenshots/
-├── index/
-├── memory/
-├── reports/
-└── tests/
-```
-
-## 8.1 Backups
-
-```text
-.godot_mcp/backups/
-```
-
-Guarda cópias antes de alterações.
-
-## 8.2 Logs
-
-```text
-.godot_mcp/logs/actions.jsonl
-```
-
-Registra chamadas de ferramentas.
-
-## 8.3 Trash seguro
-
-```text
-.godot_mcp/trash/
-```
-
-Recebe arquivos removidos por `delete_file_safe`.
-
-## 8.4 Screenshots
-
-```text
-.godot_mcp/screenshots/
-```
-
-Guarda capturas do editor ou jogo.
-
----
-
-## 9. Instalação em modo desenvolvimento com projeto de teste
-
-Fluxo recomendado para desenvolvedores:
-
-```text
-1. Clonar godot-devpilot-mcp
-2. Criar projeto Godot vazio chamado mcp-test-project
-3. Copiar addon para o projeto
-4. Ativar plugin
-5. Rodar servidor MCP em npm run dev
-6. Configurar cliente MCP apontando para tsx ou dist
-7. Executar health_check
-8. Testar create_scene, add_node e save_scene
-```
-
-Exemplo de configuração usando `tsx`:
-
-```json
-{
-  "mcpServers": {
-    "godot-devpilot-mcp-dev": {
-      "command": "npx",
-      "args": [
-        "tsx",
-        "C:/caminho/godot-devpilot-mcp/mcp-server/src/index.ts"
-      ],
-      "env": {
-        "GODOT_MCP_MODE": "core"
-      }
-    }
-  }
-}
-```
-
----
-
-## 10. Atualização
-
-## 10.1 Atualizar servidor
-
-```bash
-cd godot-devpilot-mcp
-git pull
-cd mcp-server
-npm install
-npm run build
-```
-
-## 10.2 Atualizar plugin
-
-Copiar novamente:
-
-```text
-addons/godot_devpilot_mcp
-```
-
-para o projeto Godot.
-
-Depois:
-
-```text
-Desativar plugin → Ativar plugin novamente
-```
-
-ou reiniciar a Godot.
-
----
-
-## 11. Desinstalação
-
-## 11.1 Remover plugin
-
-No projeto Godot:
-
-1. Desativar plugin em `Project Settings > Plugins`.
-2. Remover pasta:
-
-```text
-addons/godot_devpilot_mcp
-```
-
-## 11.2 Remover arquivos internos
-
-Opcionalmente remover:
-
-```text
-.godot_mcp/
-```
-
-Atenção: essa pasta pode conter backups e logs.
-
-## 11.3 Remover configuração MCP
-
-Remover entrada `godot-devpilot-mcp` do cliente MCP.
-
----
-
-## 12. Problemas comuns de instalação
-
-## 12.1 Servidor não conecta à Godot
-
-Verificar:
-
-```text
-- Godot está aberta?
-- Plugin está ativo?
-- Porta 6505 está correta?
-- Firewall bloqueou conexão local?
-- GODOT_MCP_HOST está como 127.0.0.1?
-```
-
-## 12.2 Cliente MCP não encontra o servidor
-
-Verificar:
-
-```text
-- Caminho em args está correto?
-- npm run build foi executado?
-- dist/index.js existe?
-- Node.js está no PATH?
-```
-
-## 12.3 Plugin não aparece na Godot
-
-Verificar:
-
-```text
-- plugin.cfg existe?
-- plugin.gd existe?
-- Pasta está em addons/godot_devpilot_mcp?
-- Projeto foi reiniciado após copiar addon?
-```
-
-## 12.4 Porta ocupada
-
-Alterar porta:
-
-```json
-{
-  "GODOT_MCP_PORT": "6506"
-}
-```
-
-E configurar o plugin para a mesma porta.
-
----
-
-## 13. Instalação recomendada para MVP
-
-Para a primeira versão funcional, a instalação mínima será:
-
-```text
-1. Copiar plugin para addons/
-2. Ativar plugin na Godot
-3. Instalar servidor MCP
-4. Configurar cliente MCP
-5. Rodar health_check
-```
-
-O objetivo do MVP é validar o fluxo:
-
-```text
-Cliente IA → Servidor MCP → Plugin Godot → Editor Godot
-```
-
----
-
-## 14. Conclusão
-
-A instalação do Godot DevPilot MCP envolve duas partes: servidor MCP e plugin Godot.
-
-Se ambas estiverem configuradas corretamente, o usuário poderá usar um cliente de IA compatível com MCP para interagir com o editor Godot de forma segura e estruturada.
-
+Referências: [plugins do editor Godot](https://docs.godotengine.org/en/stable/tutorials/plugins/editor/installing_plugins.html), [MCP no Claude Code](https://code.claude.com/docs/en/mcp), [MCP no Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).

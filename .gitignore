@@ -9,3 +9,6 @@ npm-debug.log*
 # Local session artifacts
 .devpilot/
 .claude/settings.local.json
+graphify-out/
+release/
+evals/results/

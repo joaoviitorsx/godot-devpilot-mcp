@@ -82,7 +82,7 @@ Evitar padrões antigos de Godot 3, especialmente em GDScript e conexão de sina
 
 ```text
 Godot 4.2+
-Node.js 18+
+Node.js 22.12+
 npm, pnpm ou yarn
 Git
 Editor de código

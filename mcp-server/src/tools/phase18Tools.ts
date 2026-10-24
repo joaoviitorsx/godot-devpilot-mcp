@@ -7,6 +7,7 @@ import type { GodotClient } from "../godot/client.js";
 import { type ToolResponse } from "../godot/protocol.js";
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely, type ToolExecutionContext } from "../safety/toolWrapper.js";
+import { resolveProjectPath } from "../safety/pathGuard.js";
 
 function toMcpResult(response: ToolResponse): CallToolResult {
   return {
@@ -15,7 +16,12 @@ function toMcpResult(response: ToolResponse): CallToolResult {
   };
 }
 
-async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
+async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}, projectRoot?: string): Promise<ToolResponse> {
+  if (method.startsWith("theme.") && projectRoot && params && typeof params === "object") {
+    const value = params as Record<string, unknown>;
+    const filePath = value.theme_path ?? value.path;
+    if (typeof filePath === "string") resolveProjectPath(filePath, projectRoot);
+  }
   if (!godot.getStatus().connected) {
     const connection = await godot.connect();
     if (!connection.ok) return connection;
@@ -315,7 +321,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "theme.create", { path, overwrite });
+        return callAfterConnect(godot, "theme.create", { path, overwrite }, config.projectRoot);
       });
       return toMcpResult(result);
     }
@@ -341,7 +347,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "theme.set_color", { theme_path, type, name, color });
+        return callAfterConnect(godot, "theme.set_color", { theme_path, type, name, color }, config.projectRoot);
       });
       return toMcpResult(result);
     }
@@ -367,7 +373,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "theme.set_constant", { theme_path, type, name, value });
+        return callAfterConnect(godot, "theme.set_constant", { theme_path, type, name, value }, config.projectRoot);
       });
       return toMcpResult(result);
     }
@@ -393,7 +399,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "theme.set_font_size", { theme_path, type, name, size });
+        return callAfterConnect(godot, "theme.set_font_size", { theme_path, type, name, size }, config.projectRoot);
       });
       return toMcpResult(result);
     }
@@ -422,7 +428,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "theme.set_stylebox", { theme_path, type, name, bg_color, border_color, border_width, corner_radius });
+        return callAfterConnect(godot, "theme.set_stylebox", { theme_path, type, name, bg_color, border_color, border_width, corner_radius }, config.projectRoot);
       });
       return toMcpResult(result);
     }
@@ -436,7 +442,7 @@ export function registerPhase18Tools(server: McpServer, godot: GodotClient, conf
     },
     async ({ theme_path }) => {
       const result = await executeToolSafely(ctx("godot_get_theme_info", config), async (): Promise<ToolResponse> => {
-        return callAfterConnect(godot, "theme.get_info", { theme_path });
+        return callAfterConnect(godot, "theme.get_info", { theme_path }, config.projectRoot);
       });
       return toMcpResult(result);
     }

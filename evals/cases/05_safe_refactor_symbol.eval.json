@@ -4,11 +4,12 @@
   "prompt": "Rename the symbol 'PlayerSpeed' to 'PLAYER_SPEED' across all GDScript files. Show me what would change first.",
   "expected_tool": "godot_safe_refactor_symbol",
   "params": {
-    "old_symbol": "PlayerSpeed",
-    "new_symbol": "PLAYER_SPEED",
+    "symbol_type": "class_name",
+    "old_value": "PlayerSpeed",
+    "new_value": "PLAYER_SPEED",
     "dry_run": true
   },
   "expected_ok": true,
-  "expected_response_contains": ["files_affected", "dry_run"],
+  "expected_response_contains": ["affected_files", "dry_run"],
   "tags": ["infer", "refactor", "dry_run"]
 }

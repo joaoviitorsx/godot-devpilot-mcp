@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  server-and-godot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+      - name: Build and test MCP server
+        working-directory: mcp-server
+        run: |
+          npm ci
+          npm run build
+          npm test
+          npm audit
+      - name: Check package, plugin, and protocol versions
+        run: node scripts/check-versions.mjs
+      - name: Test installer
+        run: node --test scripts/install.test.mjs
+      - name: Verify one-command shell bootstrap from npm package
+        run: |
+          package_file=$(npm pack --silent --pack-destination /tmp | tail -n 1)
+          mkdir -p /tmp/godopilot-one-command-game
+          printf 'config_version=5\n' > /tmp/godopilot-one-command-game/project.godot
+          (cd /tmp/godopilot-one-command-game && GODOPILOT_PACKAGE_SPEC="/tmp/$package_file" sh "$GITHUB_WORKSPACE/install.sh" --client none)
+          test -f /tmp/godopilot-one-command-game/.godot_mcp/runtime/dist/index.js
+          test -f /tmp/godopilot-one-command-game/addons/godot_devpilot_mcp/plugin.cfg
+      - name: Verify release archive installs without a Git checkout
+        run: |
+          node scripts/package-release.mjs
+          mkdir -p /tmp/devpilot-release /tmp/devpilot-game
+          package_version=$(node -p "require('./mcp-server/package.json').version")
+          tar -xzf "release/godot-devpilot-mcp-v${package_version}.tar.gz" -C /tmp/devpilot-release
+          printf 'config_version=5\n' > /tmp/devpilot-game/project.godot
+          node /tmp/devpilot-release/scripts/install.mjs --project /tmp/devpilot-game --client none --skip-build
+          test -f /tmp/devpilot-game/addons/godot_devpilot_mcp/plugin.cfg
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.6.3-stable_linux.x86_64
+      - name: Parse addon and import project
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.6.3-stable_linux.x86_64
+          "$godot" --headless --path . --import > /tmp/godot-import.log 2>&1
+          while IFS= read -r -d '' script; do
+            "$godot" --headless --path . --check-only --script "$script"
+          done < <(find addons/godot_devpilot_mcp -name '*.gd' -print0)
+      - name: Exercise authenticated editor bridge
+        run: |
+          set -euo pipefail
+          /tmp/Godot_v4.6.3-stable_linux.x86_64 --headless --path . --editor > /tmp/godot-editor.log 2>&1 &
+          editor_pid=$!
+          trap 'kill "$editor_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 30); do
+            if node evals/runner.js --case evals/cases/01_health_check.eval.json --project .; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat /tmp/godot-editor.log; exit 1; fi

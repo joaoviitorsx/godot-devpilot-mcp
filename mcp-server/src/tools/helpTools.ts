@@ -18,18 +18,18 @@ const QUICKSTART = `# DevPilot MCP — Quickstart
 
 ## Recommended flow for new projects
 
-1. **Init wizard** → \`devpilot_init_wizard\` (apply_fixes=true on first run)
-2. **Pick archetype** → \`devpilot_list_archetypes\` then \`devpilot_create_project_archetype name=<X>\`
-3. **Run playbook** → iterate the call_plan: each step is a tool to invoke
-4. **Verify** → \`devpilot_verify_spec\` with your acceptance criteria
-5. **Iterate** → use \`devpilot_refine_plan\`, \`devpilot_blueprint_*\`, \`devpilot_define_scene\`
-6. **Snapshot before risky changes** → \`devpilot_snapshot_project\`
-7. **Auto-fix** if errors appear → \`devpilot_auto_fix_parse_errors\`
+1. **Check connection** → \`godot_health_check\`, then \`devpilot_game_context\` or \`godot://project/context\`
+2. **Pick a task** → use \`devpilot_feature_loop\`, \`devpilot_playtest_loop\`, or \`devpilot_tile_workflow\` as a prompt when your client supports MCP prompts
+3. **Define observable acceptance criteria**, inspect the relevant scene and scripts, and make the smallest playable change
+4. **Verify** → \`devpilot_verify_spec\`, \`devpilot_run_headless\`, or \`devpilot_run_gut_tests\` when GUT is installed
+5. **Report evidence** → changed files, checks run, gameplay observed, and gaps that still need a manual playtest
+6. **For a new project**, use \`devpilot_init_wizard\` and optionally \`devpilot_list_archetypes\` / \`devpilot_create_project_archetype\`
 
 ## Tool tiers (call these first when discovering)
 
 ### Core (start here)
 - \`devpilot_init_wizard\` — first-run setup check
+- \`devpilot_game_context\` — concise game index with scenes, scripts, assets and missing references
 - \`devpilot_list_archetypes\` / \`devpilot_create_project_archetype\` — fast-start playbooks
 - \`devpilot_list_blueprints\` / \`devpilot_describe_blueprint\` — discover building blocks
 - \`devpilot_list_presets\` / \`devpilot_apply_preset\` — input/layer/HUD presets
@@ -59,6 +59,7 @@ const QUICKSTART = `# DevPilot MCP — Quickstart
 
 ### Quality
 - \`devpilot_run_headless\` — CI-style stderr capture
+- \`devpilot_run_gut_tests\` — run installed GUT tests and report the exit status
 - \`devpilot_performance_budget\` — static scene scan
 - \`devpilot_generate_tests\` — GUT scaffolds
 

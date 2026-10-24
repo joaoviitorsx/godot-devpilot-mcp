@@ -1,4 +1,6 @@
 import WebSocket from "ws";
+import { readFileSync, realpathSync } from "node:fs";
+import path from "node:path";
 
 import {
   createErrorResponse,
@@ -41,8 +43,11 @@ export class GodotClient {
   private manualDisconnect = false;
   private lastConnectedAt: string | null = null;
   private lastDisconnectedAt: string | null = null;
+  private ready = false;
+  private authToken = "";
+  private connecting: Promise<ToolResponse<GodotConnectionStatus>> | null = null;
 
-  constructor(private readonly config: GodotConnectionConfig) {}
+  constructor(private readonly config: GodotConnectionConfig, private readonly expected?: { projectRoot: string; pluginVersion: string; protocolVersion: string }) {}
 
   getStatus(): GodotConnectionStatus {
     return {
@@ -61,9 +66,24 @@ export class GodotClient {
     if (this.isConnected()) {
       return createSuccessResponse(this.getStatus(), "Already connected to Godot.");
     }
+    if (this.connecting) return this.connecting;
+    const operation = this.connectSocket();
+    this.connecting = operation;
+    try { return await operation; }
+    finally { if (this.connecting === operation) this.connecting = null; }
+  }
 
+  private async connectSocket(): Promise<ToolResponse<GodotConnectionStatus>> {
     this.manualDisconnect = false;
     this.clearReconnectTimer();
+    if (this.expected) {
+      try {
+        this.authToken = readFileSync(path.join(this.expected.projectRoot, ".godot_mcp", "bridge-token"), "utf8").trim();
+        if (!/^[0-9a-f]{64}$/.test(this.authToken)) throw new Error("Invalid token format");
+      } catch {
+        return createErrorResponse("BRIDGE_TOKEN_MISSING", "The Godot editor bridge token is unavailable.", {}, ["Open this project in Godot and enable the DevPilot plugin."]);
+      }
+    }
 
     return new Promise((resolve) => {
       const socket = new WebSocket(this.url);
@@ -83,9 +103,38 @@ export class GodotClient {
 
       socket.once("open", () => {
         clearTimeout(timeout);
-        this.reconnectAttempts = 0;
-        this.lastConnectedAt = new Date().toISOString();
-        resolve(createSuccessResponse(this.getStatus(), "Connected to Godot plugin."));
+        void (async () => {
+          if (this.expected) {
+            const health = await this.sendRequest("system.health_check", {});
+            if (!health.ok) {
+              this.manualDisconnect = true;
+              socket.close();
+              resolve(health);
+              return;
+            }
+            const data = health.data as Record<string, unknown> | null;
+            let sameProject = false;
+            try {
+              const actual = realpathSync(String(data?.project_path ?? ""));
+              const expected = realpathSync(this.expected.projectRoot);
+              sameProject = process.platform === "win32" ? actual.toLowerCase() === expected.toLowerCase() : actual === expected;
+            } catch { /* invalid or missing project path */ }
+            if (!sameProject || data?.plugin_version !== this.expected.pluginVersion || data?.protocol_version !== this.expected.protocolVersion) {
+              this.manualDisconnect = true;
+              socket.close();
+              resolve(createErrorResponse("BRIDGE_MISMATCH", "The connected Godot editor does not match this project or server version.", {
+                expected_project: this.expected.projectRoot, actual_project: data?.project_path,
+                expected_plugin_version: this.expected.pluginVersion, actual_plugin_version: data?.plugin_version,
+                expected_protocol_version: this.expected.protocolVersion, actual_protocol_version: data?.protocol_version
+              }, ["Open the configured project with the matching DevPilot plugin, then reconnect."]));
+              return;
+            }
+          }
+          this.ready = true;
+          this.reconnectAttempts = 0;
+          this.lastConnectedAt = new Date().toISOString();
+          resolve(createSuccessResponse(this.getStatus(), "Connected to Godot plugin."));
+        })();
       });
 
       socket.once("error", () => {
@@ -110,6 +159,7 @@ export class GodotClient {
 
   async disconnect(): Promise<void> {
     this.manualDisconnect = true;
+    this.ready = false;
     this.clearReconnectTimer();
 
     for (const [id, pending] of this.pendingRequests) {
@@ -131,9 +181,15 @@ export class GodotClient {
   }
 
   async call(method: string, params: unknown = {}): Promise<ToolResponse> {
-    if (!this.isConnected() || !this.socket) {
+    if (!this.isConnected()) {
       return this.notConnectedError({ method });
     }
+
+    return this.sendRequest(method, params);
+  }
+
+  private async sendRequest(method: string, params: unknown): Promise<ToolResponse> {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return this.notConnectedError({ method });
 
     const request = createJsonRpcRequest(method, params);
 
@@ -151,7 +207,7 @@ export class GodotClient {
       }, this.config.timeoutMs);
 
       this.pendingRequests.set(request.id, { resolve, timeout });
-      this.socket?.send(JSON.stringify(request), (error) => {
+      this.socket?.send(JSON.stringify({ ...request, auth: this.authToken }), (error) => {
         if (error) {
           clearTimeout(timeout);
           this.pendingRequests.delete(request.id);
@@ -173,7 +229,7 @@ export class GodotClient {
   }
 
   private isConnected(): boolean {
-    return this.socket?.readyState === WebSocket.OPEN;
+    return this.ready && this.socket?.readyState === WebSocket.OPEN;
   }
 
   private handleMessage(rawMessage: string): void {
@@ -198,6 +254,7 @@ export class GodotClient {
 
   private handleClose(): void {
     this.socket = null;
+    this.ready = false;
     this.lastDisconnectedAt = new Date().toISOString();
 
     for (const [id, pending] of this.pendingRequests) {

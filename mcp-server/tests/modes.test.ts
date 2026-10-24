@@ -20,11 +20,12 @@ describe("phase 1 mode capabilities", () => {
     expect(normalizeMode(undefined)).toBe("core");
   });
 
-  it("returns all tools including phase 3 and phase 4", () => {
-    const capabilities = getModeCapabilities("core");
+  it("reports the tools actually registered for a mode", () => {
+    const capabilities = getModeCapabilities("core", ["godot_health_check", "godot_get_project_info", "godot_take_game_screenshot"]);
 
     expect(capabilities.mode).toBe("core");
-    expect(capabilities.tools).toEqual(ALL_TOOLS);
+    expect(capabilities.tools).toEqual(["godot_health_check", "godot_get_project_info", "godot_take_game_screenshot"]);
+    expect(capabilities.toolsCount).toBe(3);
     expect([...PHASE1_TOOLS, ...PHASE3_TOOLS, ...PHASE4_TOOLS, ...PHASE5_TOOLS]).toEqual([...ALL_TOOLS]);
     expect(capabilities.features).toMatchObject({
       json_rpc: true,
@@ -32,13 +33,13 @@ describe("phase 1 mode capabilities", () => {
       heartbeat: true,
       reconnect: true,
       project_tools: true,
-      undo_redo: true,
-      debug_loop: true,
+      undo_redo: false,
+      debug_loop: false,
       screenshots: true,
-      input_simulation: true,
-      runtime_tree: true,
-      project_intelligence: true,
-      project_memory: true
+      input_simulation: false,
+      runtime_tree: false,
+      project_intelligence: false,
+      project_memory: false
     });
     expect(PHASE4_TOOLS).toContain("godot_audit_scene");
     expect(PHASE5_TOOLS).toContain("godot_validate_script");

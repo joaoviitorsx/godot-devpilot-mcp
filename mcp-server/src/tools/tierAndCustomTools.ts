@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { ServerConfig } from "../config/config.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
+import { safePathComponent, resolveProjectRelativePath } from "../safety/pathGuard.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
 import { autoFixGDScript } from "../utils/gdscriptLint.js";
 import { serializeSceneToTscn, type SceneSpec } from "../utils/sceneSerializer.js";
@@ -67,14 +68,14 @@ type CustomBlueprint = z.infer<typeof CustomBlueprintSchema>;
 const CUSTOM_DIR_REL = ".devpilot/custom_blueprints";
 
 async function listCustomBlueprints(projectRoot: string): Promise<CustomBlueprint[]> {
-  const dir = path.join(projectRoot, CUSTOM_DIR_REL);
+  const dir = resolveProjectRelativePath(CUSTOM_DIR_REL, projectRoot).absolutePath;
   if (!(await fileExists(dir))) return [];
   const entries = await readdir(dir);
   const out: CustomBlueprint[] = [];
   for (const f of entries) {
     if (!f.endsWith(".json")) continue;
     try {
-      const raw = await readFile(path.join(dir, f), "utf8");
+      const raw = await readFile(resolveProjectRelativePath(`${CUSTOM_DIR_REL}/${f}`, projectRoot).absolutePath, "utf8");
       const parsed = CustomBlueprintSchema.parse(JSON.parse(raw));
       out.push(parsed);
     } catch {
@@ -204,9 +205,9 @@ export function registerTierAndCustomTools(server: McpServer, config: ServerConf
       toMcpResult(
         await executeToolSafely(ctx("devpilot_register_custom_blueprint", config), async (): Promise<ToolResponse> => {
           if (config.security.readOnly) return createErrorResponse("READ_ONLY", "", {}, []);
-          const dir = path.join(config.projectRoot, CUSTOM_DIR_REL);
+          const dir = resolveProjectRelativePath(CUSTOM_DIR_REL, config.projectRoot).absolutePath;
           await mkdir(dir, { recursive: true });
-          const target = path.join(dir, `${blueprint.name}.json`);
+          const target = resolveProjectRelativePath(`${CUSTOM_DIR_REL}/${safePathComponent(blueprint.name)}.json`, config.projectRoot).absolutePath;
           if (await fileExists(target) && !overwrite) return createErrorResponse("EXISTS", "Already registered.", { path: target }, []);
           await writeFile(target, JSON.stringify(blueprint, null, 2), "utf8");
           return createSuccessResponse({ saved_path: target, name: blueprint.name }, `Custom blueprint '${blueprint.name}' saved.`);

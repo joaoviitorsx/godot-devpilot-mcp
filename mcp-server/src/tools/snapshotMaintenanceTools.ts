@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { ServerConfig } from "../config/config.js";
 import { createSuccessResponse, createErrorResponse, type ToolResponse } from "../godot/protocol.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { resolveProjectRelativePath, safePathComponent } from "../safety/pathGuard.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: !r.ok };
@@ -23,7 +24,7 @@ async function fileExists(p: string): Promise<boolean> {
 const SNAPSHOT_BASE = ".devpilot/snapshots";
 
 async function listSnapshotIds(projectRoot: string): Promise<Array<{ id: string; created_at: string }>> {
-  const base = path.join(projectRoot, SNAPSHOT_BASE);
+  const base = resolveProjectRelativePath(SNAPSHOT_BASE, projectRoot).absolutePath;
   if (!(await fileExists(base))) return [];
   const entries = await readdir(base, { withFileTypes: true });
   const out: Array<{ id: string; created_at: string }> = [];
@@ -103,14 +104,18 @@ export function registerSnapshotMaintenanceTools(server: McpServer, config: Serv
           const list = await listSnapshotIds(config.projectRoot);
           const keep = list.slice(0, keep_last);
           const drop = list.slice(keep_last);
+          const pruned: string[] = [];
+          const errors: string[] = [];
           for (const s of drop) {
             try {
-              await rm(path.join(config.projectRoot, SNAPSHOT_BASE, s.id), { recursive: true, force: true });
-            } catch { /* ignore */ }
+              await rm(resolveProjectRelativePath(`${SNAPSHOT_BASE}/${safePathComponent(s.id)}`, config.projectRoot).absolutePath, { recursive: true, force: true });
+              pruned.push(s.id);
+            } catch (error) { errors.push(`${s.id}: ${error instanceof Error ? error.message : String(error)}`); }
           }
+          if (errors.length > 0) return createErrorResponse("PRUNE_FAILED", "Some snapshots could not be deleted.", { kept: keep.map((k) => k.id), pruned, errors }, []);
           return createSuccessResponse(
-            { kept: keep.map((k) => k.id), pruned: drop.map((d) => d.id), pruned_count: drop.length },
-            `Pruned ${drop.length} snapshot(s); kept ${keep.length}.`,
+            { kept: keep.map((k) => k.id), pruned, pruned_count: pruned.length },
+            `Pruned ${pruned.length} snapshot(s); kept ${keep.length}.`,
           );
         })
       )
@@ -125,7 +130,7 @@ export function registerSnapshotMaintenanceTools(server: McpServer, config: Serv
     async ({ id }) =>
       toMcpResult(
         await executeToolSafely(ctx("devpilot_diff_snapshot", config), async (): Promise<ToolResponse> => {
-          const snapDir = path.join(config.projectRoot, SNAPSHOT_BASE, id);
+          const snapDir = resolveProjectRelativePath(`${SNAPSHOT_BASE}/${safePathComponent(id)}`, config.projectRoot).absolutePath;
           if (!(await fileExists(snapDir))) {
             return createErrorResponse("SNAPSHOT_NOT_FOUND", `Snapshot ${id} not found.`, {}, []);
           }

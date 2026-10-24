@@ -47,6 +47,17 @@ export async function executePlan(steps: PlanStep[], godot: GodotClient, stopOnE
   return { results, halted: false };
 }
 
+function planFailure(toolName: string, execution: { results: StepResult[]; halted: boolean }): ToolResponse | null {
+  const failedStep = execution.results.find((step) => !step.ok);
+  if (!failedStep) return null;
+  return createErrorResponse(
+    "WORKFLOW_INCOMPLETE",
+    `${toolName} failed at "${failedStep.name}". The project may contain changes from earlier steps.`,
+    { failed_step: failedStep, executed_steps: execution.results.length, halted: execution.halted, results: execution.results },
+    ["Inspect the failed editor response and the files already changed before retrying."]
+  );
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -92,12 +103,13 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
         }
 
         const exec = await executePlan(steps, godot, true);
-        const failed = exec.results.filter((r) => !r.ok).length;
+        const failure = planFailure("godot_build_feature", exec);
+        if (failure) return failure;
         return createSuccessResponse(
-          { feature_name, kind, executed_steps: exec.results.length, failed, halted: exec.halted, results: exec.results },
-          failed === 0 ? "Feature built successfully." : `Feature build halted after ${failed} failure(s).`,
+          { feature_name, kind, executed_steps: exec.results.length, failed: 0, halted: false, results: exec.results },
+          "Feature built successfully.",
           [],
-          failed === 0 ? [`Update memory: godot_update_project_memory file=current_task content="Implemented ${feature_name}"`] : []
+          [`Update memory: godot_update_project_memory file=current_task content="Implemented ${feature_name}"`]
         );
       })
     )
@@ -145,7 +157,9 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
           });
         }
 
-        const exec = await executePlan(steps, godot, false);
+        const exec = await executePlan(steps, godot, true);
+        const failure = planFailure("godot_create_gameplay_system", exec);
+        if (failure) return failure;
         return createSuccessResponse(
           { system, executed_steps: exec.results.length, results: exec.results },
           "Gameplay system scaffolded.",
@@ -277,9 +291,11 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
           });
         }
         const exec = await executePlan(steps, godot, true);
+        const failure = planFailure("godot_generate_scene_from_prompt", exec);
+        if (failure) return failure;
         return createSuccessResponse(
           { scene_name, scene_path: scenePath, executed_steps: exec.results.length, halted: exec.halted, results: exec.results },
-          exec.halted ? "Scene generation halted on first failure." : "Scene generated."
+          "Scene generated."
         );
       })
     )
@@ -288,7 +304,7 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
   // ── godot_create_playable_prototype ────────────────────────────────────────
   server.tool(
     "godot_create_playable_prototype",
-    "Composed scaffold: scene + player + camera + script (uses existing toolkit2d/3d). dry_run=true by default.",
+    "Create a scene scaffold and suggest player/camera tools. It is not playable until those steps are applied and tested. dry_run=true by default.",
     {
       name: z.string().min(1).describe("Prototype scene name."),
       dimension: z.enum(["2d", "3d"]).describe("2d → topdown player; 3d → CharacterBody3D + camera pivot."),
@@ -321,11 +337,14 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
         }
 
         const exec = await executePlan(steps, godot, true);
+        const failure = planFailure("godot_create_playable_prototype", exec);
+        if (failure) return failure;
         return createSuccessResponse(
           {
             name,
             scene_path: scenePath,
-            scaffold_done: !exec.halted,
+            scaffold_done: true,
+            playable: false,
             results: exec.results,
             next_steps: dimension === "2d"
               ? ["godot_create_player_2d", "godot_setup_camera_2d {parent_path:'Player'}"]
@@ -340,7 +359,7 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
   // ── godot_run_validation_loop ─────────────────────────────────────────────
   server.tool(
     "godot_run_validation_loop",
-    "Run the project, optionally play for N ms, stop, then assert no errors and return the run report.",
+    "Run and stop the project as a boot smoke test. This does not inspect runtime errors; use godot_assert_no_errors and godot_get_last_run_report afterward.",
     {
       hold_ms: z.number().int().nonnegative().max(60000).optional().describe("Time to keep the project running (ms). Defaults to 2000."),
       scene_path: z.string().optional().describe("Specific scene to run; omit for main scene.")
@@ -366,8 +385,8 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
         }
 
         return createSuccessResponse(
-          { mode: scene_path ? "scene" : "main_scene", scene_path: scene_path ?? null, hold_ms: wait, run: runResult.data, stop: stopResult.data },
-          "Validation loop completed. Use godot_assert_no_errors and godot_get_last_run_report for details."
+          { mode: scene_path ? "scene" : "main_scene", scene_path: scene_path ?? null, hold_ms: wait, run: runResult.data, stop: stopResult.data, boot_smoke_only: true },
+          "Boot smoke completed. Use godot_assert_no_errors and godot_get_last_run_report to check runtime errors."
         );
       })
     )
@@ -376,7 +395,7 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
   // ── godot_create_game_jam_prototype ────────────────────────────────────────
   server.tool(
     "godot_create_game_jam_prototype",
-    "End-to-end mini scaffold: scene + player + camera + HUD + run report. Always uses dry_run=true unless explicitly opted out.",
+    "Create a scene scaffold with optional HUD, light and environment. Player, camera and playtest are separate steps. dry_run=true unless explicitly opted out.",
     {
       name: z.string().min(1).describe("Prototype name."),
       dimension: z.enum(["2d", "3d"]).describe("2d or 3d prototype."),
@@ -411,9 +430,11 @@ export function registerAgenticTools(server: McpServer, godot: GodotClient, conf
         }
 
         const exec = await executePlan(steps, godot, true);
+        const failure = planFailure("godot_create_game_jam_prototype", exec);
+        if (failure) return failure;
         return createSuccessResponse(
-          { name, dimension, scene_path: scenePath, executed_steps: exec.results.length, halted: exec.halted, results: exec.results },
-          exec.halted ? "Prototype halted on first failure." : "Game jam prototype scaffold complete.",
+          { name, dimension, scene_path: scenePath, executed_steps: exec.results.length, halted: false, playable: false, results: exec.results },
+          "Game jam scene scaffold complete.",
           [],
           [
             "Use godot_create_player_2d or godot_create_character_body_3d to populate the player.",

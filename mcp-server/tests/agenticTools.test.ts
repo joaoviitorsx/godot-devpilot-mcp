@@ -86,6 +86,22 @@ describe("agentic — build_feature", () => {
     expect(methods).toContain("scene.create");
     expect(methods).toContain("script.create");
   });
+
+  it("reports a failed editor step as an MCP error and stops the plan", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot((method) => method === "script.create"
+      ? { ok: false, error: { code: "SCRIPT_FAILED", message: "Cannot create script", details: {}, suggestions: [] } }
+      : { ok: true, data: {}, message: "ok", warnings: [], suggestions: [] });
+    const server = makeServer();
+    registerAgenticTools(server as never, godot, makeConfig(false, root) as never);
+    const raw = await server.run("godot_build_feature", { feature_name: "X", kind: "scene_with_script", dry_run: false }) as { content: Array<{ text: string }>; isError: boolean };
+    const result = parse(raw);
+    expect(raw.isError).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe("WORKFLOW_INCOMPLETE");
+    expect(result.error.details.failed_step.method).toBe("script.create");
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0])).not.toContain("script.attach");
+  });
 });
 
 describe("agentic — gameplay_system", () => {
@@ -108,6 +124,17 @@ describe("agentic — gameplay_system", () => {
     const r = parse(await server.run("godot_create_gameplay_system", { system: "collectible_swarm", dry_run: false }) as { content: Array<{ text: string }> });
     expect(r.ok).toBe(true);
     expect(r.data.executed_steps).toBe(5);
+  });
+
+  it("halts a dependent HUD workflow when its first node cannot be added", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot(() => ({ ok: false, error: { code: "NODE_FAILED", message: "Cannot add node", details: {}, suggestions: [] } }));
+    const server = makeServer();
+    registerAgenticTools(server as never, godot, makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_create_gameplay_system", { system: "health_hud", dry_run: false }) as { content: Array<{ text: string }> });
+    expect(result.ok).toBe(false);
+    expect(result.error.details.executed_steps).toBe(1);
+    expect(godot.call).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -169,6 +196,16 @@ describe("agentic — playable_prototype", () => {
     expect(r.ok).toBe(true);
     expect(r.data.dry_run).toBe(true);
   });
+
+  it("labels an executed scene without a player as a scaffold", async () => {
+    const root = await makeRoot();
+    const server = makeServer();
+    registerAgenticTools(server as never, makeGodot(), makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_create_playable_prototype", { name: "Demo", dimension: "2d", dry_run: false }) as { content: Array<{ text: string }> });
+    expect(result.ok).toBe(true);
+    expect(result.data.scaffold_done).toBe(true);
+    expect(result.data.playable).toBe(false);
+  });
 });
 
 describe("agentic — run_validation_loop", () => {
@@ -180,6 +217,7 @@ describe("agentic — run_validation_loop", () => {
     registerAgenticTools(server as never, godot, makeConfig(false, root) as never);
     const r = parse(await server.run("godot_run_validation_loop", { hold_ms: 0 }) as { content: Array<{ text: string }> });
     expect(r.ok).toBe(true);
+    expect(r.data.boot_smoke_only).toBe(true);
     expect(calls).toContain("debug.run_project");
     expect(calls).toContain("debug.stop_project");
   });

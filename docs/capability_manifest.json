@@ -183,7 +183,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Apply (or re-apply) a GameDesignPlan idempotently. Skip steps that fail because a node/file already exists.",
+      "description": "Apply a supported 2D GameDesignPlan. Existing scene, node and script creation steps are skipped; other failures are reported.",
       "parameters": [
         {
           "name": "plan",
@@ -1487,7 +1487,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Full platformer template: scene + player (gravity+jump) + tilemap floor + enemies + collectibles + camera + HUD. Tilemap pre-filled with N×10 floor cells.",
+      "description": "Platformer scaffold: scene, movement script, empty TileMapLayer, enemies, collectibles, camera and HUD. Add a TileSet and collision before playtesting.",
       "parameters": [
         {
           "name": "scene_path",
@@ -1519,7 +1519,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Generate a playable Godot prototype from a GameDesignPlan: creates main scene + player + enemies + collectibles + saves. Optionally runs the project for 3s to validate. If no plan passed, reads from .godot_mcp/memory/game_design.json.",
+      "description": "Generate a 2D prototype scaffold from a supported GameDesignPlan: creates scene, player, enemies and collectibles. Custom genres and 3D plans require composition with other Godot tools. Optionally runs the project for 3s; gameplay still needs a playtest.",
       "parameters": [
         {
           "name": "plan",
@@ -1935,7 +1935,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Convert a natural-language game description into a structured GameDesignPlan (genre, entities, systems, menus, scenes). Persists to .godot_mcp/memory/game_design.{md,json}. Heuristic keyword parser; pass override_plan to skip parsing.",
+      "description": "Draft a structured plan for any game concept. Unknown genres remain custom, and 3D is identified explicitly. The automatic prototype generator supports only its listed 2D patterns; use engine tools for other plans. Persists to .godot_mcp/memory/game_design.{md,json}.",
       "parameters": [
         {
           "name": "prompt",
@@ -4670,7 +4670,7 @@
       "min_mode": "agentic",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "End-to-end mini scaffold: scene + player + camera + HUD + run report. Always uses dry_run=true unless explicitly opted out.",
+      "description": "Create a scene scaffold with optional HUD, light and environment. Player, camera and playtest are separate steps. dry_run=true unless explicitly opted out.",
       "parameters": [
         {
           "name": "name",
@@ -4940,7 +4940,7 @@
       "min_mode": "agentic",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Composed scaffold: scene + player + camera + script (uses existing toolkit2d/3d). dry_run=true by default.",
+      "description": "Create a scene scaffold and suggest player/camera tools. It is not playable until those steps are applied and tested. dry_run=true by default.",
       "parameters": [
         {
           "name": "name",
@@ -7741,7 +7741,7 @@
       "min_mode": "agentic",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Run the project, optionally play for N ms, stop, then assert no errors and return the run report.",
+      "description": "Run and stop the project as a boot smoke test. This does not inspect runtime errors; use godot_assert_no_errors and godot_get_last_run_report afterward.",
       "parameters": [
         {
           "name": "hold_ms",
@@ -8783,7 +8783,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Fill a rectangular region of a TileMap with a tile.",
+      "description": "Fill up to 65536 cells on a TileMapLayer or legacy TileMap with a valid TileSet source. Split larger edits into chunks.",
       "parameters": [
         {
           "name": "node_path",
@@ -8907,7 +8907,7 @@
       "min_mode": "full",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Set a tile cell in a TileMap node.",
+      "description": "Set a tile cell in a TileMapLayer or legacy TileMap with an assigned TileSet source.",
       "parameters": [
         {
           "name": "node_path",

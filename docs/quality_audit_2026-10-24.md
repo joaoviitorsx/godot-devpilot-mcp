@@ -21,6 +21,9 @@ Foram executados 483 testes do servidor, cinco testes do instalador e o smoke de
 | Tiles | `set_cell` e `fill_rect` declaravam sucesso sem TileSet ou tile válido. | A ponte valida TileSet, source, atlas/alternativa e limita o retângulo a 65.536 células. O blueprint de plataforma usa `TileMapLayer` vazio e explicita o trabalho de arte/colisão. |
 | Exportação | Ao sobrescrever, um arquivo antigo podia ser confundido com um build novo. | O destino antigo é salvo e removido antes da exportação; em falha, o arquivo anterior é restaurado. |
 | Descoberta | Palavras comuns em português dominavam a busca; consultas por gênero retornavam ferramentas aleatórias. | Stop words e sinônimos de mecânicas melhoram a busca, e lacunas de ferramenta dedicada são sinalizadas. |
+| Orquestração | Fluxos `godot_*` compostos devolviam `ok: true` quando uma etapa do editor falhava. | A falha agora interrompe o fluxo e retorna `WORKFLOW_INCOMPLETE` com a etapa, resultados anteriores e indicação de mudanças parciais. |
+| Alegações de jogabilidade | Um cenário com apenas cena ou HUD era descrito como jogável; o loop de execução alegava conferir erros sem inspecionar logs. | As saídas distinguem scaffold de jogo testado; o loop se identifica como smoke de inicialização e orienta a checagem de erros. |
+| CI de capacidades | Alterações nas descrições de ferramentas não foram refletidas no manifesto, interrompendo a CI após build e testes passarem. | O manifesto foi regenerado e `node scripts/capability-report.mjs --check` passou novamente. |
 
 ## Lacunas priorizadas
 

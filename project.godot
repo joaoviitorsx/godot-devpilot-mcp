@@ -10,9 +10,10 @@ config_version=5
 
 [application]
 
-config/name="Godot DevPilot MCP Plugin Dev"
+config/name="GodoPilot MCP Plugin Dev"
 run/main_scene="uid://dp4puc8wfl0i7"
 config/features=PackedStringArray("4.6")
+config/icon="res://icon.svg"
 
 [editor_plugins]
 

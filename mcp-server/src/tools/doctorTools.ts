@@ -584,7 +584,7 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
         let resourceDeps: Array<{ res_path: string; kind: string }> = [];
         try {
           const files = await indexProject(config.projectRoot);
-          const graph = await buildDependencyGraph(config.projectRoot);
+          const graph = await buildDependencyGraph(config.projectRoot, files);
 
           // Find what the current scene depends on
           const editorContextR = await callAfterConnect(godot, "project.get_editor_context", {});

@@ -10,6 +10,7 @@ import { createSuccessResponse, createErrorResponse, type ToolResponse } from ".
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
+import { SafetyError } from "../safety/errors.js";
 import { autoFixGDScript } from "../utils/gdscriptLint.js";
 
 function toMcpResult(r: ToolResponse): CallToolResult {
@@ -39,6 +40,12 @@ type StepResult = { step: string; ok: boolean; error?: unknown };
 async function runStep(steps: StepResult[], label: string, fn: () => Promise<ToolResponse>): Promise<ToolResponse> {
   const r = await fn();
   steps.push({ step: label, ok: r.ok, error: r.ok ? undefined : r.error });
+  if (!r.ok) throw new SafetyError(
+    "BLUEPRINT_STEP_FAILED",
+    `Blueprint stopped at '${label}'. Previous changes may need review.`,
+    { failed_step: label, editor_error: r.error, completed_steps: steps },
+    ["Inspect the partial scene and editor output before retrying."]
+  );
   return r;
 }
 
@@ -310,7 +317,7 @@ export function registerGenreBlueprintTools(server: McpServer, godot: GodotClien
   // ── Platformer ─────────────────────────────────────────────────────────────
   server.tool(
     "devpilot_create_platformer_blueprint",
-    "Full platformer template: scene + player (gravity+jump) + tilemap floor + enemies + collectibles + camera + HUD. Tilemap pre-filled with N×10 floor cells.",
+    "Platformer scaffold: scene, movement script, empty TileMapLayer, enemies, collectibles, camera and HUD. Add a TileSet and collision before playtesting.",
     {
       scene_path: z.string().optional().default("res://scenes/platformer.tscn"),
       level_length: z.number().int().positive().optional().default(50),
@@ -322,7 +329,7 @@ export function registerGenreBlueprintTools(server: McpServer, godot: GodotClien
       toMcpResult(
         await executeToolSafely(ctx("devpilot_create_platformer_blueprint", config), async (): Promise<ToolResponse> => {
           if (params.dry_run) return dryRun("devpilot_create_platformer_blueprint",
-            [`create ${params.scene_path}`, `floor: ${params.level_length}×10 cells`, `${params.enemy_count} enemies + ${params.collectible_count} collectibles`, "player + camera + HUD"], [params.scene_path]);
+            [`create ${params.scene_path}`, `empty TileMapLayer; target length ${params.level_length} cells`, `${params.enemy_count} enemies + ${params.collectible_count} collectibles`, "player + camera + HUD"], [params.scene_path]);
 
           const steps: StepResult[] = [];
           const filesCreated: string[] = [];
@@ -330,9 +337,8 @@ export function registerGenreBlueprintTools(server: McpServer, godot: GodotClien
           await runStep(steps, "create_scene", () => callRpc(godot, "scene.create", { scene_path: params.scene_path, root_node_type: "Node2D" }));
           await runStep(steps, "open_scene", () => callRpc(godot, "scene.open", { scene_path: params.scene_path }));
 
-          // Tilemap floor
-          await runStep(steps, "add_tilemap", () => addNode(godot, ".", "TileMap", "Floor"));
-          await runStep(steps, "fill_floor", () => callRpc(godot, "tilemap.fill_rect", { node_path: "Floor", x: 0, y: 8, width: params.level_length, height: 2, layer: 0, source_id: 0, atlas_x: 0, atlas_y: 0 }));
+          // Painting before assigning a real TileSet would report cells while drawing nothing.
+          await runStep(steps, "add_tilemap", () => addNode(godot, ".", "TileMapLayer", "Floor"));
 
           // Player
           const playerScript = "res://scripts/blueprint/PlatformerPlayer.gd";
@@ -380,8 +386,9 @@ export function registerGenreBlueprintTools(server: McpServer, godot: GodotClien
             entities: { player: 1, enemies: params.enemy_count, collectibles: params.collectible_count },
             files_created: filesCreated,
             steps_executed: steps.length, steps_failed: failed,
-            next_steps: ["Assign TileSet to Floor.tile_set", "Add CollisionShape2D shapes (RectangleShape2D)", "Test with debug.run_project"],
-          }, failed === 0 ? "Platformer blueprint generated." : `Platformer blueprint generated with ${failed} failures.`);
+            playable: false,
+            next_steps: [`Assign a TileSet to Floor.tile_set and paint approximately ${params.level_length} ground cells`, "Add CollisionShape2D shapes (RectangleShape2D)", "Configure input actions, then playtest controls and collisions"],
+          }, "Platformer scaffold generated; tile art, collisions and a playtest are still required.");
         })
       )
   );

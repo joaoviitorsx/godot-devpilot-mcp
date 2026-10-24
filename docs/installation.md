@@ -8,6 +8,8 @@
 
 O servidor roda na sua máquina por stdio. O plugin Godot escuta WebSocket em `127.0.0.1:6505` por padrão. O servidor só inicia quando `GODOT_MCP_PROJECT_ROOT` aponta para uma pasta com `project.godot`.
 
+Use uma versão do editor compatível com o **seu jogo**. O addon é testado em projetos isolados no Godot 4.3 e 4.6.3; este repositório de desenvolvimento foi salvo com recursos do Godot 4.6 e deve ser aberto nessa versão. Abrir o repositório inteiro no 4.3 pode falhar por conteúdo ou cache do projeto, mesmo quando o addon funciona num jogo 4.3.
+
 ## Instalação em um jogo existente
 
 Abra um terminal **dentro da pasta do jogo**, onde está `project.godot`, e use uma linha:
@@ -28,7 +30,7 @@ O padrão do comando curto é **leitura e escrita** com modo `full`, para que a 
 
 Depois, abra o **projeto do jogo** no Godot. No painel Output deve aparecer a porta do WebSocket. O editor gera um token local em `.godot_mcp/bridge-token`, atualizado ao reiniciar o plugin; o instalador adiciona esse arquivo ao `.gitignore` do jogo. Ainda na pasta do jogo, execute `node .godot_mcp/runtime/doctor.mjs` para verificar runtime, addon, cliente de IA, token e conexão autenticada com o projeto correto. O comando `godopilot doctor` faz a mesma verificação quando o pacote estiver no PATH; `--offline` verifica apenas a instalação, sem exigir o editor aberto, e `--json` produz um relatório para automação. Reinicie o cliente de IA ou atualize a lista de servidores e execute `godot_health_check`, depois `devpilot_game_context`. Se a conexão falhar, confira `Project → Project Settings → Plugins` e a saída do editor.
 
-Primeiro pedido útil à IA: “Leia `devpilot_game_context`, explique a cena principal e implemente uma pequena funcionalidade jogável. Defina critérios observáveis, valide os arquivos e execute um teste.” O MCP fornece os prompts `devpilot_feature_loop`, `devpilot_playtest_loop` e `devpilot_tile_workflow`; o cliente pode também ler o recurso `godot://project/context`. O modo `full` expõe as ferramentas especializadas, mas o acesso depende dos métodos implementados pela ponte do editor e dos addons opcionais instalados no jogo; ele não representa toda a API interna do Godot. Veja o [fluxo de desenvolvimento com IA](ai_game_development_roadmap.md).
+Primeiro pedido útil à IA: “Leia `devpilot_game_context`, explique a cena principal e implemente uma pequena funcionalidade jogável. Defina critérios observáveis, valide os arquivos e execute um teste.” Para um gênero próprio, use o prompt `devpilot_game_production_loop` com o conceito do jogo. O MCP também fornece `devpilot_feature_loop`, `devpilot_playtest_loop` e `devpilot_tile_workflow`; o cliente pode ler `godot://project/context`. `devpilot_design_game_from_prompt` preserva gêneros não reconhecidos como `custom`, enquanto o prototipador automático cobre apenas padrões 2D documentados. O modo `full` expõe as ferramentas especializadas, mas o acesso depende dos métodos implementados pela ponte do editor e dos addons opcionais instalados no jogo; ele não representa toda a API interna do Godot. Veja o [fluxo de desenvolvimento com IA](ai_game_development_roadmap.md).
 
 > O cliente aponta para `.godot_mcp/runtime/dist/index.js` dentro do jogo. Se mover a pasta do jogo para outro caminho, execute novamente o instalador para atualizar os caminhos absolutos da configuração.
 

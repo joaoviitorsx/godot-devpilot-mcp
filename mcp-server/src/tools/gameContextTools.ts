@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { open, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -22,13 +22,35 @@ function projectName(settings: string): string | null {
   return match?.[1] ?? null;
 }
 
+async function resolveSceneUid(uid: string, files: ProjectFile[]): Promise<string | null> {
+  const scenes = files.filter((file) => file.res_path.endsWith(".tscn"));
+  const matches: string[] = [];
+  for (let i = 0; i < scenes.length; i += 24) {
+    const batch = scenes.slice(i, i + 24);
+    const headers = await Promise.all(batch.map(async (file) => {
+      const handle = await open(file.absolute_path, "r").catch(() => null);
+      if (!handle) return null;
+      try {
+        const buffer = Buffer.alloc(512);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+        return buffer.toString("utf8", 0, bytesRead).match(/^\[gd_scene\b[^\]\r\n]*\buid="(uid:\/\/[^"\r\n]+)"/m)?.[1] === uid ? file.res_path : null;
+      } finally {
+        await handle.close();
+      }
+    }));
+    matches.push(...headers.filter((header): header is string => header !== null));
+    if (matches.length > 1) return null;
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export async function buildGameContext(root: string) {
-  const [allFiles, graph, settings] = await Promise.all([
+  const [allFiles, settings] = await Promise.all([
     indexProject(root),
-    buildDependencyGraph(root),
     readFile(path.join(root, "project.godot"), "utf8")
   ]);
   const gameFiles = allFiles.filter((file) => !file.res_path.startsWith("res://addons/"));
+  const graph = await buildDependencyGraph(root, gameFiles);
   const knownPaths = new Set(allFiles.map((file) => file.res_path));
   const missing = [...new Set(graph.edges
     .filter((edge) => !edge.from.startsWith("res://addons/") && !knownPaths.has(edge.to))
@@ -44,10 +66,12 @@ export async function buildGameContext(root: string) {
     csharp: gameFiles.filter((file) => file.res_path.endsWith(".cs")).length
   };
   const mainScene = settings.match(/^run\/main_scene\s*=\s*"([^"]+)"/m)?.[1] ?? null;
+  const mainSceneResolvedPath = mainScene?.startsWith("uid://") ? await resolveSceneUid(mainScene, gameFiles) : mainScene?.startsWith("res://") ? mainScene : null;
   return {
     project_name: projectName(settings),
     main_scene: mainScene,
-    main_scene_exists: mainScene?.startsWith("res://") ? knownPaths.has(mainScene) : null,
+    main_scene_resolved_path: mainSceneResolvedPath,
+    main_scene_exists: mainSceneResolvedPath ? knownPaths.has(mainSceneResolvedPath) : null,
     counts,
     scenes: samplePaths(gameFiles, "scene"),
     scripts: samplePaths(gameFiles, "script"),
@@ -127,5 +151,18 @@ export function registerGameContextTools(server: McpServer, config: ServerConfig
     "Use existing blueprints or scene tools where appropriate. Configure InputMap, visible meshes, collision resources, camera and lighting; navigation needs a baked mesh when used. " +
     "Run devpilot_audit_3d_scene on changed scenes, validate scripts, playtest controls and collision, and measure performance on the target hardware. " +
     "Report confirmed results separately from work requiring human playtesting."
+  ));
+
+  server.registerPrompt("devpilot_game_production_loop", {
+    title: "Plan and build any game concept",
+    description: "Genre-independent production loop with playable milestones and evidence",
+    argsSchema: { concept: z.string().min(1), target_platform: z.string().optional() }
+  }, async ({ concept, target_platform }) => prompt(
+    `Help build this Godot game: ${concept}\nTarget platform: ${target_platform || "use the project's target or ask before platform-specific choices"}.\n` +
+    "Read devpilot_game_context and inspect existing scenes, scripts, assets and project settings. Preserve the creator's genre and intended 2D/3D perspective; do not substitute a built-in template for an unsupported genre. " +
+    "Describe the player experience, core loop, controls, camera, progression, content needs and measurable acceptance criteria. Split work into small playable vertical slices with dependencies and risks. " +
+    "For each slice, use devpilot_find_tools to select a few relevant engine tools, inspect the actual Godot classes and resources, implement, then validate scripts/scenes and run a focused gameplay check. " +
+    "Cover input, UI, audio, persistence, accessibility, performance, export and multiplayer only where the concept needs them. Treat placeholders and untested behavior as incomplete. " +
+    "Record observed results and remaining work after each slice; do not claim the full game is finished from a parser check or generated files alone."
   ));
 }

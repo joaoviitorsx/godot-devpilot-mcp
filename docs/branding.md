@@ -18,3 +18,14 @@ Alternativas: **GodoNauta** (mais autoral, forte em português) e **GodoSail** (
 4. Validar instalação limpa e atualização com Claude Code e Codex, além da matriz Godot 4.3+ e Better Tile Editor 4.6+.
 
 O nome atual permanece nos identificadores técnicos enquanto a marca é avaliada, evitando quebrar instalações existentes.
+
+## Ícone
+
+O ícone do GodoPilot é um controle de jogo azul com rosto amigável, direcional branco e botões laranja. O azul remete ao ecossistema Godot; a silhueta e o rosto foram desenhados para identificar este projeto de forma própria. O símbolo oficial do Godot não é usado como marca do MCP, conforme as [diretrizes de uso do Godot Engine](https://godotengine.org/press/).
+
+- Fonte vetorial: [`logos/export/logo.svg`](../logos/export/logo.svg).
+- Prévia dos três conceitos e conferência em 64, 32 e 16 pixels: [`logos/preview.html`](../logos/preview.html).
+- Ícone do projeto de desenvolvimento Godot: [`icon.svg`](../icon.svg), derivado em 128 × 128 pixels para preservar o tamanho dos sprites nas cenas de demonstração.
+- Exportações PNG estão em `logos/export/`, de 16 a 2048 pixels.
+
+O processo de criação seguiu a [logo-designer-skill](https://github.com/neonwatty/logo-designer-skill) (licença MIT), com três direções originais e teste de legibilidade em tamanhos pequenos. O conceito **Controle** foi escolhido para a versão final. O GodoPilot é independente e não endossado pelo projeto Godot.

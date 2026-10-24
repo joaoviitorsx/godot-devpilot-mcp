@@ -41,24 +41,29 @@ async function walk(absDir: string, projectRoot: string, out: ProjectFile[]): Pr
     return;
   }
 
+  const directories: string[] = [];
+  const localFiles: Array<{ absolutePath: string; name: string }> = [];
   for (const entry of entries) {
     const abs = path.join(absDir, entry.name);
     if (entry.isDirectory()) {
       if (IGNORED_DIRS.has(entry.name)) continue;
-      await walk(abs, projectRoot, out);
+      directories.push(abs);
     } else if (entry.isFile()) {
       if (entry.name.startsWith(".") && !entry.name.endsWith(".gd")) continue;
-      const rel = path.relative(projectRoot, abs).split(path.sep).join("/");
-      const st = await stat(abs).catch(() => null);
-      if (!st) continue;
-      out.push({
-        res_path: `res://${rel}`,
-        absolute_path: abs,
-        size_bytes: st.size,
-        kind: classifyByExt(entry.name)
-      });
+      localFiles.push({ absolutePath: abs, name: entry.name });
     }
   }
+  // Limit concurrent metadata calls so large asset folders remain responsive.
+  for (let i = 0; i < localFiles.length; i += 32) {
+    const batch = await Promise.all(localFiles.slice(i, i + 32).map(async (file) => {
+      const st = await stat(file.absolutePath).catch(() => null);
+      if (!st) return null;
+      const rel = path.relative(projectRoot, file.absolutePath).split(path.sep).join("/");
+      return { res_path: `res://${rel}`, absolute_path: file.absolutePath, size_bytes: st.size, kind: classifyByExt(file.name) } satisfies ProjectFile;
+    }));
+    out.push(...batch.filter((file): file is ProjectFile => file !== null));
+  }
+  for (const dir of directories) await walk(dir, projectRoot, out);
 }
 
 export type ProjectSummary = {
@@ -72,8 +77,8 @@ export type ProjectSummary = {
   largest_files: Array<{ res_path: string; size_bytes: number }>;
 };
 
-export async function buildProjectSummary(projectRoot: string): Promise<ProjectSummary> {
-  const files = await indexProject(projectRoot);
+export async function buildProjectSummary(projectRoot: string, indexedFiles?: ProjectFile[]): Promise<ProjectSummary> {
+  const files = indexedFiles ?? await indexProject(projectRoot);
   const counts = { scene: 0, script: 0, resource: 0, asset: 0, other: 0 };
   for (const f of files) counts[f.kind]++;
 
@@ -117,8 +122,8 @@ const LOAD_RE = /(?:^|[^a-zA-Z0-9_])load\s*\(\s*["']([^"']+)["']\s*\)/g;
 const EXTENDS_RE = /extends\s+["']([^"']+)["']/g;
 const SCENE_EXT_RES_RE = /\[ext_resource\s+[^\]]*path="([^"]+)"/g;
 
-export async function buildDependencyGraph(projectRoot: string): Promise<DependencyGraph> {
-  const files = await indexProject(projectRoot);
+export async function buildDependencyGraph(projectRoot: string, indexedFiles?: ProjectFile[]): Promise<DependencyGraph> {
+  const files = indexedFiles ?? await indexProject(projectRoot);
   const nodes = new Set<string>();
   const edges: DependencyEdge[] = [];
 
@@ -162,8 +167,8 @@ export type SignalConnection = {
 
 const TSCN_CONNECTION_RE = /\[connection\s+([^\]]+)\]/g;
 
-export async function buildSignalMap(projectRoot: string): Promise<SignalConnection[]> {
-  const files = await indexProject(projectRoot);
+export async function buildSignalMap(projectRoot: string, indexedFiles?: ProjectFile[]): Promise<SignalConnection[]> {
+  const files = indexedFiles ?? await indexProject(projectRoot);
   const connections: SignalConnection[] = [];
 
   for (const file of files) {

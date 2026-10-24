@@ -63,4 +63,14 @@ describe("JSON-RPC protocol helpers", () => {
       )
     );
   });
+
+  it("does not report an empty or malformed plugin result as success", () => {
+    for (const result of [{}, null, { ok: true }, { ok: false }]) {
+      const response = normalizePluginResponse({ jsonrpc: "2.0", id: "1", result });
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("INVALID_PLUGIN_RESULT");
+    }
+    const malformedError = normalizePluginResponse({ jsonrpc: "2.0", id: "1", error: null });
+    expect(malformedError.ok).toBe(false);
+  });
 });

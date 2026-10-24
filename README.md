@@ -1,220 +1,119 @@
-# GodoPilot — Godot DevPilot MCP
+<p align="center">
+  <img src="logos/export/logo.svg" alt="GodoPilot mascot" width="112">
+</p>
 
-Open source MCP integration for **Godot 4.3+**. Exposes a local TypeScript MCP server that talks to a Godot editor plugin via WebSocket / JSON-RPC 2.0.
+<h1 align="center">GodoPilot</h1>
 
-The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug runs, screenshots, input simulation, runtime introspection, project intelligence, persistent memory, gameplay toolkits and agentic plans.
+<p align="center"><strong>Build games with AI, directly in the Godot editor.</strong></p>
 
----
+<p align="center">
+  An open source MCP bridge for Claude Code and Codex CLI.
+  Inspect your game, change scenes and scripts, run it, and verify the result without leaving your project.
+</p>
 
-## Status
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#what-you-can-do">What you can do</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="docs/cookbook.md">Examples</a> ·
+  <a href="docs/installation.md">Documentation</a>
+</p>
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 0 | Foundation, audit, docs | ✅ |
-| 1 | Core MCP + WebSocket | ✅ |
-| 2 | Security (sandbox, backups, logs) | ✅ |
-| 3 | Project tools (info, autoloads, input map) | ✅ |
-| 4 | Scenes, nodes, UndoRedo | ✅ |
-| 5 | GDScript tooling (create/patch/validate/symbols) | ✅ |
-| 6 | Debug loop (run/stop/logs/fix) | ✅ |
-| 7 | Screenshots + input simulation | ✅ |
-| 8 | Runtime analysis (tree, FPS, find UI) | ✅ |
-| 9 | Project intelligence (deps, signals, impact) | ✅ |
-| 10 | Project memory (`.godot_mcp/memory/`) | ✅ |
-| 11 | Toolkits 2D (player, enemy, hud, parallax, …) | ✅ |
-| 12 | Toolkits 3D (camera, character, lighting, raycast, …) | ✅ |
-| 12+ | Auditoria de cenas 3D (colisão, mesh, navegação, ambiente, câmera) e prompt de fatia jogável | ✅ |
-| 12+ | Starter FPS/TPS jogável com cena, controle e recursos 3D atribuídos | ✅ |
-| 13 | Specialized toolkits (Physics/Animation/Audio/Particles/Shader/Navigation) | ✅ |
-| 14 | Test scenarios + assertions + stress test | ✅ |
-| 15 | Agentic orchestrators (build_feature, refactor, validation loop) | ✅ |
-| 16 | Release prep (CHANGELOG, demos) | ✅ |
-| 2.x | Prompt-first workflows, genre blueprints, blueprint library, snapshots, CI | ✅ |
+GodoPilot connects an AI coding client to the **Godot 4.3+** editor. It gives the assistant tools for scenes, nodes, GDScript, assets, 2D and 3D workflows, playtesting, and project inspection. The editor remains the source of truth: the AI can make a change, run the game, inspect errors or screenshots, and refine it.
 
-**Version:** 2.9.0 — see `CHANGELOG.md`.
-**Build:** clean (`npm run build`).  
-**Tests:** run `npm test` in `mcp-server/` for the current count.
-**Tools registered:** varies by `minimal`, `core`, `full`, and `agentic`; `godot_get_capabilities` returns the exact active list.
+> GodoPilot is an independent community project for Godot Engine. It is not affiliated with or endorsed by the Godot project.
 
----
+## Install
 
-## Architecture
+You need **Godot 4.3+**, **Node.js 22.12+ with npm**, and **Claude Code or Codex CLI**. Open a terminal in your **game project folder** (where `project.godot` lives), then run:
 
-```text
-AI Client
-  └─> MCP server (TypeScript, stdio transport)
-        └─> WebSocket (127.0.0.1:6505)
-              └─> Godot EditorPlugin
-                    └─> Godot editor / runtime
-```
-
-Server: `mcp-server/` (Node 22.12+, TypeScript).
-Plugin: `addons/godot_devpilot_mcp/` (GDScript, EditorPlugin).
-
----
-
-## Quick start
-
-Requirements: Godot 4.3+, Node.js 22.12+ with npm, and Claude Code or Codex CLI. Open a terminal **inside your game project** (the directory containing `project.godot`) and run:
+**macOS / Linux**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.sh | sh
 ```
 
-On Windows PowerShell, use:
+**Windows PowerShell**
 
 ```powershell
 irm https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.ps1 | iex
 ```
 
-The installer detects Claude Code and/or Codex CLI, installs a stable MCP runtime under `.godot_mcp/runtime/`, copies and enables the Godot plugin, configures the detected clients, and adds short guidance to `CLAUDE.md` and/or `AGENTS.md` without removing existing instructions. It defaults to read-write with the `full` tool set. For a local checkout before publication, run `node /absolute/path/to/godot-devpilot-mcp/bin/godopilot.mjs` from your game project. Use `--read-only`, `--mode core`, `--client codex`, or `--dry-run` when needed.
+The installer adds the Godot editor plugin and a local MCP runtime to this game, enables the plugin, configures the clients it finds, and adds short project guidance for the AI. Existing client instructions are preserved.
 
-Open your game in Godot, then run `node .godot_mcp/runtime/doctor.mjs` from the game directory to check the installation and authenticated editor connection. Start a new AI session there and ask *"Use GodoPilot to inspect this game."* The AI can then call `godot_health_check` and `devpilot_game_context`. The editor and MCP server use local WebSocket port 6505 by default.
+**Then:**
 
-Detailed steps, manual configuration, updates, and troubleshooting: [installation guide](docs/installation.md). This repository's `project.godot` is a plugin development sandbox saved with Godot 4.6.
+1. Open the game project in the Godot editor.
+2. Start a new Claude Code or Codex CLI session in the same game folder.
+3. Ask: **“Use GodoPilot to inspect this game and suggest the next playable improvement.”**
 
-For maintainers: [Graphify setup](docs/graphify.md) and [review plan](docs/review_plan.md).
+To verify the editor connection, run `node .godot_mcp/runtime/doctor.mjs` from the game folder. For updates, manual setup, troubleshooting, and installer options such as `--read-only` or `--client codex`, see the [installation guide](docs/installation.md).
 
-For AI generated gameplay code, follow the [GDScript and scene practices](docs/gdscript_scene_practices.md).
+## What you can do
 
-Product naming proposal: [GodoPilot](docs/branding.md).
+| Goal | How GodoPilot helps |
+| --- | --- |
+| Understand an existing game | Summarize scenes, scripts, dependencies, input actions, signals, and project structure. |
+| Build a playable feature | Add or edit nodes, scenes, GDScript, resources, UI, and input mappings, then run checks. |
+| Make 2D and 3D games | Use focused helpers for characters, cameras, lighting, navigation, animations, audio, shaders, tiles, and GridMap. |
+| Work with assets | Inspect imported resources, assign materials, import glTF scenes, and audit 3D models. |
+| Verify behavior | Run the game, collect logs, capture screenshots, simulate input, assert properties, and run headless tests. |
+| Stay in control | Preview changes with dry run, work in read only mode, use backups, and undo supported editor actions. |
 
-Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) (optional, Godot 4.6+).
+The AI can find relevant tools with `devpilot_find_tools` instead of scanning the full catalog. Start with `devpilot_game_context` for a project overview; use `godot_get_capabilities` when you need the exact active tool list. [Browse the full reference](docs/api_reference.md).
 
-To start a 3D game, ask the AI to call `devpilot_create_3d_starter` with `mode="fps"` or `mode="tps"` (available in `full` and `agentic`). It creates a playable arena and controller in one call. If your project already has a main scene, it keeps it and you can play the generated scene with F6. Use `dry_run=true` to preview the files. See the [3D workflow](docs/ai_game_development_roadmap.md#trilha-específica-para-jogos-3d).
-
-For an existing 3D scene, `godot_create_character_body_3d`, `godot_create_primitive_mesh`, `godot_setup_lighting`, and `godot_create_navigation_region_3d` assign resources directly in the editor. `godot_import_gltf` instances an already imported `.gltf` or `.glb` scene; `godot_audit_gltf` inspects its meshes, materials, animations, collision and node scales. The navigation region starts with a flat rectangle; `godot_bake_navigation_mesh_3d` replaces it with an undoable mesh baked from level meshes and static colliders. The tool reports the polygon count and rejects an empty bake.
-
-For modular 3D levels, `godot_create_gridmap_3d` accepts an existing MeshLibrary or creates a collidable Block palette. `godot_get_gridmap_palette` lists valid item IDs; `godot_paint_gridmap_cells` places or erases up to 512 cells in one undoable action.
-
-First prompt to try: *"Call `devpilot_game_context`, use `devpilot_find_tools` to choose tools for my next playable feature, then implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md), [engine capability audit](docs/godot_api_gap_audit.md) and `docs/cookbook.md`.
-
-For detailed editor work, `godot_get_classdb_info` and `godot_inspect_object` reveal available properties. `godot_assign_resource` and `godot_set_resource_property` edit typed resources with UndoRedo. `godot_add_animation_track` creates a saved property animation, and `godot_reimport_asset` refreshes an imported asset. In `full` or `agentic`, `godot_export_project` runs a real headless export using an existing preset and installed templates. `devpilot_review_gdscript` gives advisory checks on style and scene coupling.
-
----
-
-## Tool catalog (high-level)
+### Prompts to try
 
 ```text
-Phase 1   Core              godot_health_check, godot_ping, godot_get_capabilities, …
-Phase 3   Project           godot_get_project_info, godot_get_input_map, godot_add_autoload, …
-Phase 4   Scenes/Nodes      godot_create_scene, godot_add_node, godot_set_node_property, …
-Phase 5   Scripts           godot_create_script, godot_patch_script, godot_validate_script, …
-Phase 6   Debug             godot_run_project, godot_get_output_logs, godot_fix_errors, …
-Phase 7   Screenshots/Input godot_take_game_screenshot, godot_press_action, godot_run_input_sequence, …
-Phase 8   Runtime           godot_get_runtime_tree, godot_find_runtime_node, godot_wait_for_condition, …
-Phase 9   Intelligence      godot_project_summary, godot_build_dependency_graph, godot_impact_check, …
-Phase 10  Memory            godot_update_project_memory, godot_create_decision_record, godot_search_memory
-Phase 11  Toolkit 2D        godot_create_player_2d, godot_setup_camera_2d, godot_create_inventory_ui, …
-Phase 12  Toolkit 3D        godot_create_character_body_3d, godot_setup_lighting, godot_create_raycast_3d, …
-3D start  Playable scene    devpilot_create_3d_starter (FPS/TPS)
-Phase 13  Specialized       godot_setup_physics_body, godot_create_animation_player, godot_create_shader, …
-Phase 14  Testing           godot_assert_property_equals, godot_run_test_scenario, godot_stress_test_scene
-Phase 15  Agentic           godot_build_feature, godot_refactor_safely, godot_run_validation_loop, …
-Tiles     Atlas/terrain     godot_create_tile_atlas, godot_better_tile_editor_* (optional addon)
-Context   Game overview     devpilot_game_context, godot://project/context, MCP workflow prompts
-Tests     Automated         devpilot_run_headless, devpilot_run_gut_tests (optional GUT addon)
-
-v2.x      Prompt-first      devpilot_route_prompt, devpilot_execute_prompt_workflow, devpilot_refine_plan, …
-v2.x      Onboarding        devpilot_init_wizard, devpilot_help, devpilot_tutorial, devpilot_game, …
-v2.x      Blueprints        devpilot_list_blueprints, devpilot_blueprint_* (2D, 3D, RPG, A/V, genres, C#), …
-v2.x      Composition       devpilot_create_project_archetype, devpilot_compose_main_scene, devpilot_define_scene, …
-v2.x      Lifecycle         devpilot_snapshot_project, devpilot_rollback_to_snapshot, devpilot_setup_ci, …
-v2.x      Quality           devpilot_verify_spec, devpilot_auto_fix_parse_errors, devpilot_generate_tests, …
+Inspect this Godot project. Find the main scene, controls, current gameplay loop,
+and the smallest next feature that would make it more playable.
 ```
-
-Full reference: `docs/api_reference.md`.  
-Per-phase validation: `docs/PHASE_<N>_VALIDATION.md`.
-
----
-
-## Security model
-
-- **Path sandbox:** every `res://` path resolved + checked against the project root. Traversal (`..`), absolute paths, foreign URIs all rejected.
-- **Editor bridge:** listens only on loopback, requires a random session token in `.godot_mcp/bridge-token`, and verifies the project path and protocol version before MCP tools reach the editor. The installer ignores the token in Git.
-- **Read-only mode:** `GODOT_MCP_READ_ONLY=true` blocks every mutating tool with `READ_ONLY_MODE`. Read-only allowlist is explicit per tool.
-- **Backups:** every script/file overwrite copies the original to `.godot_mcp/backups/YYYY-MM-DD/<file>.bak`.
-- **Dry run:** mutating tools accept `dry_run=true` and return a `planned_changes` list without touching the filesystem or the editor.
-- **Action logs:** every call appended to `.godot_mcp/logs/actions.jsonl` with status (`success`/`error`/`blocked`/`dry_run`).
-- **UndoRedo:** node mutations and script attaches go through Godot's UndoRedo so Ctrl+Z reverts them.
-
-See `docs/security.md`.
-
----
-
-## Examples
 
 ```text
-examples/demo_2d_project/   Minimal 2D platformer scaffold
-examples/demo_3d_project/   Minimal 3D character + camera scaffold
-examples/shooter_2d_complete/   Full 2D shooter walkthrough
-examples/rpg_topdown_complete/  Full top-down RPG walkthrough
-examples/fps_3d_complete/       Full 3D FPS walkthrough
+Create a third-person 3D prototype with a controllable character, follow camera,
+lighting, collision, and a test arena. Run it and report what you verified.
 ```
 
-Each example has a README with a suggested tool sequence.
+```text
+Add a 2D level with TileMapLayer, player movement, an enemy, and a win condition.
+Use my existing assets where possible, then playtest the result.
+```
 
----
+For an unfamiliar genre, ask the assistant to use `devpilot_game_production_loop` with your concept and build one verified playable slice at a time. For a ready 3D starting point, `devpilot_create_3d_starter` supports FPS and TPS scenes. The [cookbook](docs/cookbook.md) has longer examples.
 
-## Development
+## How it works
 
-```bash
+```text
+Claude Code / Codex CLI
+        │ MCP
+        ▼
+GodoPilot server (local Node.js process)
+        │ authenticated WebSocket on 127.0.0.1
+        ▼
+GodoPilot plugin inside the Godot editor
+        ▼
+Your game project
+```
+
+The bridge runs locally, checks the project path and protocol version, and uses a per project token. Mutating tools support project path checks; many support dry run, backup, or Godot UndoRedo. Read the [security model](docs/security.md) for the exact guarantees and exceptions.
+
+The installer defaults to the `full` tool profile. You can choose `minimal`, `core`, or `agentic` according to the work you want the AI to do. Optional integrations include [Better Tile Editor](docs/better_tile_editor.md) for advanced tiles on Godot 4.6+ and GUT for tests.
+
+GodoPilot has broad editor coverage, but it does **not** implement every Godot API or a dedicated workflow for every game genre. Multiplayer, vehicles, and rhythm systems currently rely on composition from general tools and project code. See the [current coverage audit](docs/quality_audit_2026-10-24.md) and [engine coverage plan](docs/engine_coverage_plan.md).
+
+## For contributors
+
+This repository is the plugin development workspace; its `project.godot` was saved with Godot 4.6. The installed addon targets Godot 4.3+ for its core tools.
+
+```sh
 cd mcp-server
-npm run dev          # build and start the server
-npm test             # vitest run
-npm run build        # tsc → dist/
+npm ci
+npm run build
+npm test
 ```
 
-Tests are excluded from `tsconfig.json` and run via vitest only.
-
-Manual validation with Godot editor: see `docs/MANUAL_TESTING_GUIDE.md`.
-
-Run `node evals/runner.js --all --project .` with the editor open to execute the eight baseline MCP cases. `node scripts/package-release.mjs` creates a versioned install archive and SHA-256 checksum after `npm run build`.
-
----
-
-## Project structure
-
-```text
-mcp-server/
-├── src/
-│   ├── config/          loadConfig, validateProjectRoot, modes
-│   ├── godot/           WebSocket client, JSON-RPC protocol
-│   ├── safety/          pathGuard, backup, dryRun, permissions, toolWrapper, actionLogger
-│   ├── indexer/         projectIndexer (Phase 9)
-│   └── tools/           coreTools, projectTools, sceneTools, nodeTools, scriptTools,
-│                        fileTools, debugTools, screenshotTools, inputTools,
-│                        runtimeTools, intelligenceTools, memoryTools,
-│                        toolkit2dTools, toolkit3dTools, toolkit13Tools,
-│                        testTools, agenticTools, blueprintLibrary*, …
-└── tests/               vitest files
-
-addons/godot_devpilot_mcp/
-├── plugin.cfg, plugin.gd
-├── core/                rpc_server, dispatcher, protocol, response_factory,
-│                        permissions, undo_service
-└── tools/               scene_tools, node_tools, script_tools, debug_tools,
-                         screenshot_tools, input_tools, runtime_tools
-
-docs/                    31+ markdown documents (architecture, security, validations, roadmap)
-examples/                demo_2d/3d scaffolds + shooter_2d / rpg_topdown / fps_3d complete
-.godot_mcp/              Runtime artefacts (backups/, logs/, screenshots/,
-                         intel/, memory/, tests/, reports/)
-```
-
----
+The server lives in `mcp-server/`; the editor plugin lives in `addons/godot_devpilot_mcp/`. For local evaluation and releases, see the [testing guide](docs/MANUAL_TESTING_GUIDE.md), [contribution guide](docs/contributing.md), [implementation status](docs/IMPLEMENTATION_PROGRESS.md), and [changelog](CHANGELOG.md). The [brand assets](logos/preview.html) include the selected controller mascot and two explored concepts.
 
 ## License
 
-MIT — see `LICENSE`.
-
----
-
-## Contributing
-
-- `docs/contributing.md` for coding conventions.
-- `docs/OPEN_ISSUES.md` for outstanding work.
-- `docs/IMPLEMENTATION_PROGRESS.md` for current phase status.
-- `docs/MANUAL_TESTING_GUIDE.md` before opening a PR that touches editor-side flows.
-
-Pull requests welcome.
+MIT — see [LICENSE](LICENSE).

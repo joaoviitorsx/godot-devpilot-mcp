@@ -102,22 +102,22 @@ export function isJsonRpcResponse(value: unknown): value is JsonRpcResponse {
 }
 
 function normalizeResult(result: unknown): ToolResponse {
-  if (!result || typeof result !== "object") {
-    return createSuccessResponse(result, "Operation completed successfully.");
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return createErrorResponse("INVALID_PLUGIN_RESULT", "Godot returned a result without a valid tool status.", { result }, ["Check the editor output and retry the operation."]);
   }
 
   const candidate = result as Partial<ToolSuccess> & Partial<ToolFailure>;
-  if (candidate.ok === true) {
+  if (candidate.ok === true && "data" in candidate) {
     return {
       ok: true,
-      data: "data" in candidate ? candidate.data : {},
+      data: candidate.data,
       message: typeof candidate.message === "string" ? candidate.message : "Operation completed successfully.",
       warnings: Array.isArray(candidate.warnings) ? candidate.warnings : [],
       suggestions: Array.isArray(candidate.suggestions) ? candidate.suggestions : []
     };
   }
 
-  if (candidate.ok === false && candidate.error) {
+  if (candidate.ok === false && candidate.error && typeof candidate.error === "object") {
     const error = candidate.error;
     return createErrorResponse(
       error.code || "UNKNOWN_ERROR",
@@ -127,7 +127,7 @@ function normalizeResult(result: unknown): ToolResponse {
     );
   }
 
-  return createSuccessResponse(result, "Operation completed successfully.");
+  return createErrorResponse("INVALID_PLUGIN_RESULT", "Godot returned an incomplete tool result; the operation was not confirmed.", { result }, ["Check the editor output and retry the operation."]);
 }
 
 export function normalizePluginResponse(response: unknown): ToolResponse {
@@ -141,6 +141,9 @@ export function normalizePluginResponse(response: unknown): ToolResponse {
   }
 
   if ("error" in response) {
+    if (!response.error || typeof response.error !== "object") {
+      return createErrorResponse("INVALID_RESPONSE", "Plugin returned a malformed JSON-RPC error.", { response }, []);
+    }
     return createErrorResponse(
       response.error.code || "UNKNOWN_ERROR",
       response.error.message || "Plugin returned an error.",

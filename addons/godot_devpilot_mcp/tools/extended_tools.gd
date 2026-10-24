@@ -338,6 +338,11 @@ func tilemap_set_cell(params: Dictionary) -> Dictionary:
 	var atlas_x: int = int(params.get("atlas_x", 0))
 	var atlas_y: int = int(params.get("atlas_y", 0))
 	var alt: int = int(params.get("alternative_tile", 0))
+	if x < -32768 or x > 32767 or y < -32768 or y > 32767:
+		return ResponseFactory.error("TILE_COORDINATE_OUT_OF_RANGE", "Tile coordinates must fit Godot's serialized 16-bit range.", {"x": x, "y": y}, [])
+	var tile_check: Dictionary = _validate_tile_selection(tilemap, source_id, Vector2i(atlas_x, atlas_y), alt)
+	if not tile_check.is_empty():
+		return tile_check
 
 	if tilemap.is_class("TileMap"):
 		tilemap.set_cell(layer, Vector2i(x, y), source_id, Vector2i(atlas_x, atlas_y), alt)
@@ -364,6 +369,13 @@ func tilemap_fill_rect(params: Dictionary) -> Dictionary:
 	var atlas_x: int = int(params.get("atlas_x", 0))
 	var atlas_y: int = int(params.get("atlas_y", 0))
 	var alt: int = int(params.get("alternative_tile", 0))
+	if width <= 0 or height <= 0 or width > 65536 or height > 65536 or width * height > 65536:
+		return ResponseFactory.error("INVALID_FILL_SIZE", "Tile rectangle must contain 1 to 65536 cells.", {"width": width, "height": height}, [])
+	if x < -32768 or y < -32768 or x + width - 1 > 32767 or y + height - 1 > 32767:
+		return ResponseFactory.error("TILE_COORDINATE_OUT_OF_RANGE", "Tile rectangle exceeds Godot's serialized 16-bit coordinate range.", {"x": x, "y": y, "width": width, "height": height}, [])
+	var tile_check: Dictionary = _validate_tile_selection(tilemap, source_id, Vector2i(atlas_x, atlas_y), alt)
+	if not tile_check.is_empty():
+		return tile_check
 	var cells_set := 0
 
 	for cx in range(x, x + width):
@@ -378,6 +390,20 @@ func tilemap_fill_rect(params: Dictionary) -> Dictionary:
 		{"cells_set": cells_set, "rect": {"x": x, "y": y, "w": width, "h": height}},
 		"Rect filled."
 	)
+
+
+func _validate_tile_selection(tilemap: Node, source_id: int, coords: Vector2i, alternative: int) -> Dictionary:
+	if source_id == -1:
+		return {}
+	var tile_set: TileSet = tilemap.get("tile_set") as TileSet
+	if tile_set == null:
+		return ResponseFactory.error("TILESET_MISSING", "Assign a TileSet before painting cells.", {}, ["Create or import a TileSet atlas first."])
+	if not tile_set.has_source(source_id):
+		return ResponseFactory.error("TILE_SOURCE_MISSING", "TileSet does not contain this source ID.", {"source_id": source_id}, [])
+	var source: TileSetSource = tile_set.get_source(source_id)
+	if not source.has_tile(coords) or not source.has_alternative_tile(coords, alternative):
+		return ResponseFactory.error("TILE_NOT_FOUND", "TileSet source does not contain this tile or alternative.", {"source_id": source_id, "atlas": [coords.x, coords.y], "alternative": alternative}, [])
+	return {}
 
 
 func tilemap_get_cell(params: Dictionary) -> Dictionary:

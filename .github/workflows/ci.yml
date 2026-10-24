@@ -57,6 +57,8 @@ jobs:
         run: node scripts/smoke-3d-starter.mjs /tmp/Godot_v4.6.3-stable_linux.x86_64
       - name: Assign 3D toolkit resources through the editor bridge
         run: node scripts/smoke-3d-toolkit.mjs /tmp/Godot_v4.6.3-stable_linux.x86_64
+      - name: Reject invalid TileMapLayer edits through the editor bridge
+        run: node scripts/smoke-tile-validation.mjs /tmp/Godot_v4.6.3-stable_linux.x86_64
       - name: Parse addon and import project
         run: |
           set -euo pipefail
@@ -99,6 +101,8 @@ jobs:
           chmod +x /tmp/Godot_v4.3-stable_linux.x86_64
       - name: Verify 3D toolkit and navigation baking on Godot 4.3
         run: node scripts/smoke-3d-toolkit.mjs /tmp/Godot_v4.3-stable_linux.x86_64
+      - name: Verify TileMapLayer validation on Godot 4.3
+        run: node scripts/smoke-tile-validation.mjs /tmp/Godot_v4.3-stable_linux.x86_64
 
   windows-godot:
     runs-on: windows-latest
@@ -126,4 +130,6 @@ jobs:
           node scripts/smoke-3d-starter.mjs $godot
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/smoke-3d-toolkit.mjs $godot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-tile-validation.mjs $godot
           exit $LASTEXITCODE

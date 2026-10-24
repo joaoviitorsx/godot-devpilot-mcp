@@ -294,9 +294,9 @@ export function registerIntelligenceTools(server: McpServer, config: ServerConfi
     async () => toMcpResult(
       await executeToolSafely(ctx("godot_analyze_architecture", config), async (): Promise<ToolResponse> => {
         const files = await indexProject(config.projectRoot);
-        const summary = await buildProjectSummary(config.projectRoot);
-        const graph = await buildDependencyGraph(config.projectRoot);
-        const signals = await buildSignalMap(config.projectRoot);
+        const summary = await buildProjectSummary(config.projectRoot, files);
+        const graph = await buildDependencyGraph(config.projectRoot, files);
+        const signals = await buildSignalMap(config.projectRoot, files);
 
         const incoming = new Map<string, number>();
         for (const e of graph.edges) {

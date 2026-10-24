@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,5 +39,16 @@ describe("project export", () => {
     const result = JSON.parse((await run({ preset_name: "Linux/X11", export_path: "res://builds/game.x86_64", godot_bin: "missing-godot-executable-for-test" })).content[0].text);
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe("EXPORT_FAILED");
+  });
+
+  it("restores the previous build when an overwrite export fails", async () => {
+    const run = await setup();
+    const root = roots.at(-1)!;
+    const oldBuild = path.join(root, "builds", "game.x86_64");
+    await writeFile(oldBuild, "previous build");
+    const result = JSON.parse((await run({ preset_name: "Linux/X11", export_path: "res://builds/game.x86_64", overwrite: true, godot_bin: "missing-godot-executable-for-test" })).content[0].text);
+    expect(result.ok).toBe(false);
+    expect(result.error.details.previous_build_restored).toBe(true);
+    expect(await readFile(oldBuild, "utf8")).toBe("previous build");
   });
 });

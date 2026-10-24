@@ -31,10 +31,20 @@ describe("game context for AI workflows", () => {
     const context = await buildGameContext(root);
     expect(context.project_name).toBe("My Game");
     expect(context.main_scene_exists).toBe(true);
+    expect(context.main_scene_resolved_path).toBe("res://scenes/main_scene.tscn");
     expect(context.counts).toMatchObject({ scenes: 1, scripts: 1, assets: 1 });
     expect(context.addons).toEqual(["godot_devpilot_mcp"]);
     expect(context.missing_dependencies).toContain("res://scenes/main_scene.tscn -> res://assets/missing.png");
     expect(context.scripts.paths).toEqual(["res://scripts/player.gd"]);
+  });
+
+  it("resolves a Godot 4 scene UID from the scene header", async () => {
+    const root = await fixture();
+    await writeFile(path.join(root, "project.godot"), '[application]\nrun/main_scene="uid://test_main_scene"\n');
+    await writeFile(path.join(root, "scenes", "main_scene.tscn"), '[gd_scene format=3 uid="uid://test_main_scene"]\n[node name="Main" type="Node2D"]\n');
+    const context = await buildGameContext(root);
+    expect(context.main_scene_resolved_path).toBe("res://scenes/main_scene.tscn");
+    expect(context.main_scene_exists).toBe(true);
   });
 
   it("exposes a read-only tool, resource, and reusable feature/playtest/tile/3D prompts", async () => {
@@ -54,7 +64,7 @@ describe("game context for AI workflows", () => {
       expect(JSON.parse(text).ok).toBe(true);
       const prompts = await client.listPrompts();
       expect(prompts.prompts.map((entry) => entry.name)).toEqual([
-        "devpilot_feature_loop", "devpilot_playtest_loop", "devpilot_tile_workflow", "devpilot_3d_vertical_slice"
+        "devpilot_feature_loop", "devpilot_playtest_loop", "devpilot_tile_workflow", "devpilot_3d_vertical_slice", "devpilot_game_production_loop"
       ]);
       const feature = await client.getPrompt({ name: "devpilot_feature_loop", arguments: { goal: "Add a jump" } });
       expect(feature.messages[0].content.type).toBe("text");

@@ -30,13 +30,15 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-type Genre = "platformer" | "topdown" | "rpg" | "survivor" | "puzzle" | "visual_novel" | "tower_defense";
+type Genre = "platformer" | "topdown" | "rpg" | "survivor" | "puzzle" | "visual_novel" | "tower_defense" | "custom";
 type EntityType = "player" | "enemy" | "boss" | "npc" | "collectible";
 type SystemType = "health" | "damage" | "interaction" | "inventory" | "save" | "hud" | "score" | "dialogue";
 type MenuType = "main" | "pause" | "settings" | "audio" | "video" | "keybinding" | "game_over" | "level_select";
 
 export type GameDesignPlan = {
   genre: Genre;
+  dimension?: "2d" | "3d";
+  concept?: string;
   title: string;
   entities: Array<{ type: EntityType; count?: number; controller_style?: string }>;
   systems: SystemType[];
@@ -46,7 +48,9 @@ export type GameDesignPlan = {
 };
 
 const GameDesignPlanSchema: z.ZodType<GameDesignPlan> = z.object({
-  genre: z.enum(["platformer", "topdown", "rpg", "survivor", "puzzle", "visual_novel", "tower_defense"]),
+  genre: z.enum(["platformer", "topdown", "rpg", "survivor", "puzzle", "visual_novel", "tower_defense", "custom"]),
+  dimension: z.enum(["2d", "3d"]).optional(),
+  concept: z.string().max(2000).optional(),
   title: z.string(),
   entities: z.array(z.object({ type: z.enum(["player", "enemy", "boss", "npc", "collectible"]), count: z.number().int().nonnegative().optional(), controller_style: z.string().optional() })),
   systems: z.array(z.enum(["health", "damage", "interaction", "inventory", "save", "hud", "score", "dialogue"])),
@@ -57,7 +61,7 @@ const GameDesignPlanSchema: z.ZodType<GameDesignPlan> = z.object({
 
 // ── Keyword parser ───────────────────────────────────────────────────────────
 
-const GENRE_KEYWORDS: Record<Genre, string[]> = {
+const GENRE_KEYWORDS: Record<Exclude<Genre, "custom">, string[]> = {
   platformer: ["platformer", "platform game", "side-scroll", "sidescroll", "side scroller", "jumping game", "plataforma", "plataformer", "jogo de plataforma"],
   topdown: ["topdown", "top-down", "top down", "dungeon crawler", "dungeon", "visão de cima", "visao de cima", "vista de cima"],
   rpg: ["rpg", "role-playing", "role playing", "jrpg", "action rpg", "aventura rpg"],
@@ -156,7 +160,7 @@ function detectGenre(lower: string): Genre {
   }
   if (/(jump|pulo|pular)/.test(lower)) return "platformer";
   if (/(top.?down|topo|cima)/.test(lower)) return "topdown";
-  return "topdown";
+  return "custom";
 }
 
 function detectQuantity(lower: string, kws: string[]): number | undefined {
@@ -165,7 +169,7 @@ function detectQuantity(lower: string, kws: string[]): number | undefined {
   const m = lower.match(re);
   if (m) return parseInt(m[1], 10);
   // PT-BR ordinal forms ("um inimigo", "dois monstros", ...)
-  const words: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, three: 3, três: 3, tres: 3, four: 4, quatro: 4, five: 5, cinco: 5, six: 6, seis: 7, seven: 7, sete: 7, eight: 8, oito: 8, nine: 9, nove: 9, ten: 10, dez: 10 };
+  const words: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, three: 3, três: 3, tres: 3, four: 4, quatro: 4, five: 5, cinco: 5, six: 6, seis: 6, seven: 7, sete: 7, eight: 8, oito: 8, nine: 9, nove: 9, ten: 10, dez: 10 };
   for (const [w, n] of Object.entries(words)) {
     const wre = new RegExp(`\\b${w}\\s+(?:${escaped})`, "i");
     if (wre.test(lower)) return n;
@@ -184,9 +188,10 @@ function extractTitle(prompt: string, genre: Genre): string {
 export function parsePromptToPlan(prompt: string): GameDesignPlan {
   const lower = prompt.toLowerCase();
   const genre: Genre = detectGenre(lower);
+  const dimension = /\b3d\b|tridimensional|three.dimensions?/.test(lower) ? "3d" : /\b2d\b|bidimensional|two.dimensions?/.test(lower) ? "2d" : undefined;
 
   const playerStyle = genre === "platformer" ? "platformer" : "topdown";
-  const entities: GameDesignPlan["entities"] = [{ type: "player", controller_style: playerStyle }];
+  const entities: GameDesignPlan["entities"] = genre === "custom" ? [] : [{ type: "player", controller_style: playerStyle }];
   for (const [t, kws] of Object.entries(ENTITY_KEYWORDS) as Array<[EntityType, string[]]>) {
     if (t === "player") continue;
     const m = matchesAny(lower, kws);
@@ -219,11 +224,11 @@ export function parsePromptToPlan(prompt: string): GameDesignPlan {
 
   const title = extractTitle(prompt, genre);
   const scenes: GameDesignPlan["scenes"] = [
-    { name: "Main", root_type: "Node2D", instances: [] },
+    { name: "Main", root_type: dimension === "3d" ? "Node3D" : genre === "custom" ? "Node" : "Node2D", instances: [] },
     { name: "MainMenu", root_type: "Control" },
   ];
 
-  return { genre, title, entities, systems, menus, scenes, placeholders: wantsPlaceholders };
+  return { genre, dimension, concept: prompt.slice(0, 2000), title, entities, systems, menus, scenes, placeholders: wantsPlaceholders };
 }
 
 // Apply a delta prompt to an existing plan. Adds detected entities/systems/menus from
@@ -237,6 +242,8 @@ export function applyDeltaToPlan(plan: GameDesignPlan, delta: string): GameDesig
     menus: [...plan.menus],
     scenes: plan.scenes.map((s) => ({ ...s })),
   };
+  if (/\b3d\b|tridimensional/.test(lower)) next.dimension = "3d";
+  else if (/\b2d\b|bidimensional/.test(lower)) next.dimension = "2d";
 
   // Genre override (only if explicit alias/keyword present).
   const explicitGenre = (Object.entries(GENRE_ALIASES).find(([alias]) => lower.includes(alias)) ?? null);
@@ -300,6 +307,8 @@ function planToMarkdown(plan: GameDesignPlan): string {
     `Generated: ${new Date().toISOString()}`,
     "",
     `**Genre**: ${plan.genre}`,
+    `**Dimension**: ${plan.dimension ?? "unspecified"}`,
+    ...(plan.concept ? ["", "## Concept", plan.concept] : []),
     "",
     "## Entities",
     entityRows || "_(none)_",
@@ -318,7 +327,12 @@ function planToMarkdown(plan: GameDesignPlan): string {
 
 // ── Plan executor ────────────────────────────────────────────────────────────
 
-type StepResult = { step: string; ok: boolean; data?: unknown; error?: unknown };
+type StepResult = { step: string; ok: boolean; skipped?: boolean; data?: unknown; error?: unknown };
+
+function prototypeSupport(plan: GameDesignPlan): ToolResponse | null {
+  if (plan.genre !== "custom" && plan.dimension !== "3d") return null;
+  return createErrorResponse("PLAN_REQUIRES_COMPOSITION", "This concept needs a genre-specific composition of Godot tools; the automatic prototype generator only implements its listed 2D patterns.", { genre: plan.genre, dimension: plan.dimension ?? null, concept: plan.concept ?? null }, ["Use devpilot_game_context and devpilot_find_tools to choose engine tools for the mechanics.", "Build a small playable slice with devpilot_feature_loop or devpilot_3d_vertical_slice, then validate it in Godot."]);
+}
 
 const PLACEHOLDER_COLOR: Record<EntityType, [number, number, number]> = {
   player: [0.30, 0.65, 1.00],
@@ -359,7 +373,8 @@ export async function applyPlan(godot: GodotClient, config: ServerConfig, plan: 
 
   const run = async (label: string, fn: () => Promise<ToolResponse>): Promise<ToolResponse> => {
     const r = await fn();
-    steps.push({ step: label, ok: r.ok, data: r.ok ? r.data : undefined, error: r.ok ? undefined : r.error });
+    const skipped = opts.skipExisting && !r.ok && ["FILE_ALREADY_EXISTS", "NODE_ALREADY_EXISTS", "ALREADY_EXISTS"].includes(r.error.code);
+    steps.push({ step: label, ok: r.ok || skipped, skipped, data: r.ok ? r.data : undefined, error: r.ok || skipped ? undefined : r.error });
     return r;
   };
 
@@ -484,7 +499,7 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
   // ── devpilot_design_game_from_prompt ──────────────────────────────────────
   server.tool(
     "devpilot_design_game_from_prompt",
-    "Convert a natural-language game description into a structured GameDesignPlan (genre, entities, systems, menus, scenes). Persists to .godot_mcp/memory/game_design.{md,json}. Heuristic keyword parser; pass override_plan to skip parsing.",
+    "Draft a structured plan for any game concept. Unknown genres remain custom, and 3D is identified explicitly. The automatic prototype generator supports only its listed 2D patterns; use engine tools for other plans. Persists to .godot_mcp/memory/game_design.{md,json}.",
     {
       prompt: z.string().describe("Natural-language game description"),
       override_plan: GameDesignPlanSchema.optional().describe("Use this plan directly instead of parsing"),
@@ -502,6 +517,7 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
             plan,
             prompt: params.prompt,
             persisted_path: persistedPath,
+            automatic_prototype_supported: prototypeSupport(plan) === null,
             summary: `Genre=${plan.genre}, ${plan.entities.length} entities, ${plan.systems.length} systems, ${plan.menus.length} menus.`,
           }, `Plan generated: ${plan.title}`);
         })
@@ -511,7 +527,7 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
   // ── devpilot_create_playable_prototype ────────────────────────────────────
   server.tool(
     "devpilot_create_playable_prototype",
-    "Generate a playable Godot prototype from a GameDesignPlan: creates main scene + player + enemies + collectibles + saves. Optionally runs the project for 3s to validate. If no plan passed, reads from .godot_mcp/memory/game_design.json.",
+    "Generate a 2D prototype scaffold from a supported GameDesignPlan: creates scene, player, enemies and collectibles. Custom genres and 3D plans require composition with other Godot tools. Optionally runs the project for 3s; gameplay still needs a playtest.",
     {
       plan: GameDesignPlanSchema.optional(),
       validate: z.boolean().optional().default(true),
@@ -526,6 +542,8 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
             if (!loaded) return createErrorResponse("NO_PLAN", "No plan provided and no persisted plan found.", {}, ["Run devpilot_design_game_from_prompt first or pass plan param"]) as ToolResponse;
             plan = loaded;
           }
+          const unsupported = prototypeSupport(plan);
+          if (unsupported) return unsupported;
 
           if (params.dry_run) {
             return createSuccessResponse({
@@ -543,6 +561,7 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
           }
 
           const result = await applyPlan(godot, config, plan, { skipExisting: false, runValidation: params.validate });
+          if (result.failed > 0) return createErrorResponse("PROTOTYPE_INCOMPLETE", `Prototype has ${result.failed} failed steps.`, { title: plan.title, steps: result.steps, files_created: result.files_created, scenes: result.scenes }, ["Inspect failed steps and editor output before treating the prototype as playable."]);
 
           return createSuccessResponse({
             title: plan.title,
@@ -553,8 +572,9 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
             scenes: result.scenes,
             validated: params.validate,
             steps: result.steps,
-            ready_to_play: result.failed === 0,
-          }, result.failed === 0 ? `Prototype '${plan.title}' generated and ready.` : `Prototype generated with ${result.failed} failed steps.`);
+            ready_to_play: false,
+            generated_without_tool_errors: true,
+          }, `Prototype scaffold '${plan.title}' generated; gameplay still needs a playtest.`);
         })
       )
   );
@@ -562,7 +582,7 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
   // ── devpilot_apply_game_design_plan ───────────────────────────────────────
   server.tool(
     "devpilot_apply_game_design_plan",
-    "Apply (or re-apply) a GameDesignPlan idempotently. Skip steps that fail because a node/file already exists.",
+    "Apply a supported 2D GameDesignPlan. Existing scene, node and script creation steps are skipped; other failures are reported.",
     {
       plan: GameDesignPlanSchema,
       validate: z.boolean().optional().default(false),
@@ -570,7 +590,10 @@ export function registerPrototypeTools(server: McpServer, godot: GodotClient, co
     async (params) =>
       toMcpResult(
         await executeToolSafely(ctx("devpilot_apply_game_design_plan", config), async (): Promise<ToolResponse> => {
+          const unsupported = prototypeSupport(params.plan);
+          if (unsupported) return unsupported;
           const result = await applyPlan(godot, config, params.plan, { skipExisting: true, runValidation: params.validate });
+          if (result.failed > 0) return createErrorResponse("PROTOTYPE_INCOMPLETE", `Plan has ${result.failed} failed steps.`, { title: params.plan.title, steps: result.steps, files_created: result.files_created, scenes: result.scenes }, ["Inspect failed steps and editor output before retrying."]);
           return createSuccessResponse({
             title: params.plan.title,
             steps_executed: result.steps.length,

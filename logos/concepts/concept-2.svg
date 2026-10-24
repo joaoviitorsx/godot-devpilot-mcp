@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">GodoPilot — mascote bússola amigável</title>
+  <g id="icon">
+    <g id="map-pin">
+      <path d="M256 44C149 44 66 126 66 230c0 112 109 195 190 241 81-46 190-129 190-241C446 126 363 44 256 44Z" fill="#478CBF" stroke="#263C52" stroke-width="18" stroke-linejoin="round"/>
+      <circle cx="256" cy="222" r="140" fill="#FFFFFF" stroke="#263C52" stroke-width="12"/>
+    </g>
+    <g id="face" fill="#263C52">
+      <circle cx="204" cy="207" r="18"/>
+      <circle cx="308" cy="207" r="18"/>
+      <path d="M206 271c13 21 30 31 50 31s37-10 50-31" fill="none" stroke="#263C52" stroke-width="17" stroke-linecap="round"/>
+    </g>
+    <g id="compass-needle">
+      <path d="M226 369h60l-30 59Z" fill="#F6B74A" stroke="#263C52" stroke-width="10" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

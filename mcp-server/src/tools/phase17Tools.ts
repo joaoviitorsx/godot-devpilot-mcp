@@ -136,16 +136,16 @@ export function registerPhase17Tools(server: McpServer, godot: GodotClient, conf
 
   server.tool(
     "godot_tilemap_set_cell",
-    "Set a tile cell in a TileMap node.",
+    "Set a tile cell in a TileMapLayer or legacy TileMap with an assigned TileSet source.",
     {
       node_path: z.string().describe("NodePath to TileMap."),
-      layer: z.number().optional().describe("Layer index, default 0."),
-      x: z.number().describe("Cell X coordinate."),
-      y: z.number().describe("Cell Y coordinate."),
-      source_id: z.number().optional().describe("TileSet source ID, default 0."),
-      atlas_x: z.number().optional().describe("Atlas coords X, default 0."),
-      atlas_y: z.number().optional().describe("Atlas coords Y, default 0."),
-      alternative_tile: z.number().optional().describe("Alternative tile index, default 0."),
+      layer: z.number().int().nonnegative().optional().describe("Layer index, default 0."),
+      x: z.number().int().min(-32768).max(32767).describe("Cell X coordinate."),
+      y: z.number().int().min(-32768).max(32767).describe("Cell Y coordinate."),
+      source_id: z.number().int().optional().describe("TileSet source ID, default 0; -1 erases."),
+      atlas_x: z.number().int().optional().describe("Atlas coords X, default 0."),
+      atlas_y: z.number().int().optional().describe("Atlas coords Y, default 0."),
+      alternative_tile: z.number().int().nonnegative().optional().describe("Alternative tile index, default 0."),
       dry_run: z.boolean().optional()
     },
     async ({ node_path, layer, x, y, source_id, atlas_x, atlas_y, alternative_tile, dry_run }) => {
@@ -166,17 +166,17 @@ export function registerPhase17Tools(server: McpServer, godot: GodotClient, conf
 
   server.tool(
     "godot_tilemap_fill_rect",
-    "Fill a rectangular region of a TileMap with a tile.",
+    "Fill up to 65536 cells on a TileMapLayer or legacy TileMap with a valid TileSet source. Split larger edits into chunks.",
     {
       node_path: z.string(),
-      layer: z.number().optional(),
-      x: z.number().describe("Top-left X."),
-      y: z.number().describe("Top-left Y."),
-      width: z.number().describe("Fill width in cells."),
-      height: z.number().describe("Fill height in cells."),
-      source_id: z.number().optional(),
-      atlas_x: z.number().optional(),
-      atlas_y: z.number().optional(),
+      layer: z.number().int().nonnegative().optional(),
+      x: z.number().int().min(-32768).max(32767).describe("Top-left X."),
+      y: z.number().int().min(-32768).max(32767).describe("Top-left Y."),
+      width: z.number().int().positive().max(65536).describe("Fill width in cells; width × height must be <= 65536."),
+      height: z.number().int().positive().max(65536).describe("Fill height in cells; width × height must be <= 65536."),
+      source_id: z.number().int().optional(),
+      atlas_x: z.number().int().optional(),
+      atlas_y: z.number().int().optional(),
       dry_run: z.boolean().optional()
     },
     async ({ node_path, layer, x, y, width, height, source_id, atlas_x, atlas_y, dry_run }) => {

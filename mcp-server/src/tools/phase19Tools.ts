@@ -8,7 +8,7 @@ import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely, type ToolExecutionContext } from "../safety/toolWrapper.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
 import { createFileBackup } from "../safety/backup.js";
-import { access, mkdir, readFile, stat } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, stat, unlink } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 
@@ -109,11 +109,18 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
         const exists = await access(target.absolutePath).then(() => true, () => false);
         if (exists && !overwrite) return createErrorResponse("EXPORT_EXISTS", "Export target exists. Set overwrite=true to replace it.", { export_path: resPath }, []);
         const backupPath = exists ? (await createFileBackup({ projectRoot: config.projectRoot, resPath, toolName: "godot_export_project", reason: "Overwrite exported build" })).backupResPath : null;
+        // Remove the previous build after backing it up. Otherwise a successful
+        // editor exit without output could make the old file look newly exported.
+        if (exists) await unlink(target.absolutePath);
         await mkdir(path.dirname(target.absolutePath), { recursive: true });
         const run = await runExport(godot_bin ?? "godot", config.projectRoot, preset_name, target.absolutePath, debug ?? false, (timeout_seconds ?? 300) * 1000);
-        if (run.timedOut || run.code !== 0) return createErrorResponse("EXPORT_FAILED", run.timedOut ? "Godot export timed out." : "Godot export failed.", { exit_code: run.code, output: run.output, export_path: resPath, backup_path: backupPath }, ["Check the preset and install export templates for this Godot version."]);
         const exported = await stat(target.absolutePath).catch(() => null);
-        if (!exported?.isFile() || exported.size === 0) return createErrorResponse("EXPORT_MISSING", "Godot exited successfully but produced no nonempty build file.", { export_path: resPath, output: run.output }, []);
+        if (run.timedOut || run.code !== 0 || !exported?.isFile() || exported.size === 0) {
+          if (exported?.isFile()) await unlink(target.absolutePath);
+          if (backupPath) await copyFile(resolveProjectPath(backupPath, config.projectRoot).absolutePath, target.absolutePath);
+          const failed = run.timedOut || run.code !== 0;
+          return createErrorResponse(failed ? "EXPORT_FAILED" : "EXPORT_MISSING", failed ? (run.timedOut ? "Godot export timed out." : "Godot export failed.") : "Godot exited successfully but produced no nonempty build file.", { exit_code: run.code, output: run.output, export_path: resPath, backup_path: backupPath, previous_build_restored: Boolean(backupPath) }, ["Check the preset and install export templates for this Godot version."]);
+        }
         return createSuccessResponse({ preset_name, export_path: resPath, bytes: exported.size, debug: debug ?? false, output: run.output, backup_path: backupPath }, "Build exported and verified.");
       });
       return toMcpResult(result);

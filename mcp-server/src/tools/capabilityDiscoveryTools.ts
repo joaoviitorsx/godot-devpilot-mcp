@@ -17,8 +17,20 @@ const WORDS: Record<string, string[]> = {
   exportar: ["export", "build"], modelo: ["model", "gltf", "import"], textura: ["texture", "asset"],
   material: ["material", "shader"], terreno: ["terrain", "tile", "gridmap"],
   teste: ["test", "playtest", "replay"], interface: ["ui", "menu", "hud"],
+  corrida: ["physics", "input", "camera", "vehicle"], racing: ["physics", "input", "camera", "vehicle"],
+  carro: ["physics", "input", "camera", "vehicle"], carros: ["physics", "input", "camera", "vehicle"],
+  veiculo: ["physics", "input", "camera", "vehicle"], veiculos: ["physics", "input", "camera", "vehicle"],
+  ritmo: ["audio", "input", "animation"], rhythm: ["audio", "input", "animation"],
+  musical: ["audio", "input"], batida: ["audio", "input"],
+  estrategia: ["unit", "navigation", "state_machine"], strategy: ["unit", "navigation", "state_machine"],
+  turnos: ["state_machine", "signal", "ui"], turn: ["state_machine", "signal", "ui"],
+  simulacao: ["resource", "save", "ui"], simulation: ["resource", "save", "ui"],
+  fazenda: ["tile", "inventory", "save", "resource"], farming: ["tile", "inventory", "save", "resource"],
+  multiplayer: ["network", "peer"], online: ["network", "peer"],
   simples: [], complexo: ["workflow", "plan", "feature"]
 };
+
+const STOP_WORDS = new Set(["godot", "quero", "para", "uma", "com", "the", "and", "jogo", "jogos", "game", "games", "criar", "crie", "fazer", "faca", "usar", "utilizar", "de", "do", "da", "dos", "das", "em", "um", "no", "na", "por", "que", "como", "with", "for", "create", "make", "add"]);
 
 function normalize(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -51,7 +63,7 @@ function versionAtLeast(current: string | null, required: string): boolean {
 }
 
 export function findRelevantTools(registered: Registered[], query: string, options: { category?: string; limit?: number; readOnly?: boolean; godotVersion?: string | null; betterTileEditorAvailable?: boolean | null } = {}) {
-  const rawTerms = normalize(query).split(/[^a-z0-9]+/).filter((term) => term.length > 1 && !["godot", "quero", "para", "uma", "com", "the", "and"].includes(term));
+  const rawTerms = normalize(query).split(/[^a-z0-9]+/).filter((term) => term.length > 1 && !STOP_WORDS.has(term));
   const terms = [...new Set(rawTerms.flatMap((term) => [term, ...(WORDS[term] ?? [])]))];
   const limit = Math.min(15, Math.max(1, options.limit ?? 8));
   return registered.filter((tool) => tool.enabled && tool.name !== "devpilot_find_tools")
@@ -97,7 +109,19 @@ export function registerCapabilityDiscoveryTools(server: McpServer, godot: Godot
         if (!betterTileEditorAvailable) matches = findRelevantTools(tools, query, { category: requestedCategory, limit, readOnly: config.security.readOnly, godotVersion, betterTileEditorAvailable });
       }
     }
-    const response = createSuccessResponse({ query, mode: config.mode, godot_version: godotVersion, better_tile_editor_available: betterTileEditorAvailable, matches, note: godotVersion ? undefined : "Editor version unavailable; version and addon requirements are listed but not filtered." }, "Relevant active tools found.");
+    const domain = normalize(query);
+    const dedicatedDomain = /\b(multiplayer|online|network|rede)\b/.test(domain) ? /multiplayer|network|peer/ :
+      /\b(corrida|racing|veiculo|veiculos|carro|carros)\b/.test(domain) ? /vehicle|racing/ :
+      /\b(ritmo|rhythm)\b/.test(domain) ? /rhythm|beat/ :
+      /\b(turnos|turn.based)\b/.test(domain) ? /turn.based|turno/ : null;
+    const lacksDedicatedTool = dedicatedDomain !== null && !tools.some((tool) => tool.enabled && dedicatedDomain.test(tool.name));
+    let coverageGap: { coverage_gap: string; fallback_tools: string[] } | undefined;
+    if (matches.length === 0 || lacksDedicatedTool) {
+      const fallbackNames = ["godot_get_classdb_info", "godot_create_script", "godot_create_scene", "godot_add_node", "devpilot_game_context"];
+      const fallbackTools = fallbackNames.filter((name) => tools.some((tool) => tool.name === name && tool.enabled && (!config.security.readOnly || isToolAllowedInReadOnly(name))));
+      coverageGap = { coverage_gap: "No dedicated active tool covers this mechanic. The matches, if any, are building blocks; compose the mechanic with Godot classes, scripts and scenes, then confirm it in a playable test.", fallback_tools: fallbackTools };
+    }
+    const response = createSuccessResponse({ query, mode: config.mode, godot_version: godotVersion, better_tile_editor_available: betterTileEditorAvailable, matches, note: godotVersion ? undefined : "Editor version unavailable; version and addon requirements are listed but not filtered.", ...coverageGap }, "Relevant active tools found.");
     return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
   });
 }

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">GodoPilot — mascote de controle de jogo sorridente</title>
+  <g id="icon">
+    <g id="gamepad">
+      <path d="M139 132c-40 0-66 31-76 73L37 331c-9 43 6 76 39 90 31 13 63-2 87-30l34-39h118l34 39c24 28 56 43 87 30 33-14 48-47 39-90l-26-126c-10-42-36-73-76-73H139Z" fill="#478CBF" stroke="#263C52" stroke-width="16" stroke-linejoin="round"/>
+      <path d="M154 150h204" fill="none" stroke="#79ABD0" stroke-width="12" stroke-linecap="round"/>
+    </g>
+    <g id="face" fill="#263C52">
+      <ellipse cx="214" cy="224" rx="21" ry="27"/>
+      <ellipse cx="298" cy="224" rx="21" ry="27"/>
+      <path d="M222 285c18 22 50 22 68 0" fill="none" stroke="#263C52" stroke-width="15" stroke-linecap="round"/>
+    </g>
+    <g id="controls">
+      <path d="M126 287h24v20h20v24h-20v20h-24v-20h-20v-24h20v-20Z" fill="#F6F8FA" stroke="#263C52" stroke-width="8" stroke-linejoin="round"/>
+      <circle cx="369" cy="299" r="18" fill="#F6B74A" stroke="#263C52" stroke-width="8"/>
+      <circle cx="411" cy="333" r="18" fill="#F6B74A" stroke="#263C52" stroke-width="8"/>
+    </g>
+  </g>
+</svg>

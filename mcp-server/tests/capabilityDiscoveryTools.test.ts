@@ -5,6 +5,8 @@ import { findRelevantTools } from "../src/tools/capabilityDiscoveryTools.js";
 const registered = [
   { name: "godot_setup_lighting", description: "Add a WorldEnvironment and light to the scene.", enabled: true, parameters: [] },
   { name: "godot_create_3d_starter", description: "Create a playable FPS or TPS arena.", enabled: true, parameters: [] },
+  { name: "godot_get_audio_buses", description: "Inspect audio buses and sound routing.", enabled: true, parameters: [] },
+  { name: "devpilot_blueprint_rts_unit", description: "Create an RTS strategy unit.", enabled: true, parameters: [] },
   { name: "godot_better_tile_editor_paint_terrain", description: "Paint terrain with the optional addon.", enabled: true, parameters: [] },
   { name: "godot_execute_editor_script", description: "Run arbitrary editor code.", enabled: true, parameters: [] },
   { name: "godot_disabled_light", description: "A disabled light tool.", enabled: false, parameters: [] }
@@ -25,5 +27,10 @@ describe("task-oriented capability discovery", () => {
     expect(findRelevantTools(registered, "pintar terreno", { readOnly: false, godotVersion: "4.3" })).toEqual([]);
     expect(findRelevantTools(registered, "luz", { readOnly: true })).toEqual([]);
     expect(findRelevantTools(registered, "pintar terreno", { readOnly: false, godotVersion: "4.6", betterTileEditorAvailable: false })).toEqual([]);
+  });
+
+  it("routes genre language to relevant capabilities instead of matching common Portuguese words", () => {
+    expect(findRelevantTools(registered, "jogo de ritmo com música", { readOnly: false })[0]?.name).toBe("godot_get_audio_buses");
+    expect(findRelevantTools(registered, "estratégia em turnos", { readOnly: false })[0]?.name).toBe("devpilot_blueprint_rts_unit");
   });
 });

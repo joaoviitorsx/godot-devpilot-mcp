@@ -8,6 +8,20 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ---
 
+## [2.9.0] — 2026-10-24 — Descoberta da engine e práticas de código
+
+### Added
+- Manifesto verificável de ferramentas MCP e rotas RPC, com conferência na CI, e busca de ferramentas por tarefa em português ou inglês.
+- Introspecção detalhada e paginada de ClassDB, nós e recursos; atribuição e edição tipada de recursos com UndoRedo ou backup.
+- Trilha de animação de propriedade real, reimportação controlada de assets e exportação headless de builds por preset existente.
+- Revisão consultiva de GDScript e guia de organização de scripts, nós e cenas baseado na documentação oficial.
+
+### Fixed
+- Compatibilidade da reimportação com Godot 4.3, respostas vazias do plugin que pareciam sucesso e promessa de timeout para scripts que o editor não pode interromper.
+- Auditoria de cena deixa de tratar nós repetidos ou sem script como falha e não associa profundidade diretamente a desempenho.
+
+---
+
 ## [2.8.0] — 2026-10-24 — Reliable tests and modular 3D levels
 
 ### Added

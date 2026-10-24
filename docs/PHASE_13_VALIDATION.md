@@ -29,7 +29,7 @@ Cada sub-toolkit entrega operações compostas (orquestração `node.add` + `set
 
 ```text
 [x] godot_create_animation_player    (AnimationPlayer node)
-[x] godot_add_animation_track        (read-only — instructions; AnimationLibrary requer editor)
+[x] godot_add_animation_track        (criação real de AnimationLibrary e trilha tipada com UndoRedo na versão 2.9)
 [x] godot_create_animation_tree      (AnimationTree + anim_player + active=true)
 ```
 
@@ -180,7 +180,7 @@ Total projeto: **28 files / 272 tests passing**.
    mostra layer/mask=1.
 3. godot_add_raycast_2d {parent_path:"Ball"} → RayCast2D criado.
 4. godot_create_animation_player → AnimationPlayer adicionado.
-5. godot_add_animation_track → instructions retornadas (sem mutação).
+5. godot_add_animation_track → animação de propriedade criada e salva; validar chaves na cena (desde a versão 2.9).
 6. godot_create_animation_tree {anim_player:"../AnimationPlayer"} → tree configurada.
 7. godot_create_audio_stream_player_2d {bus:"SFX", volume_db:-6} → player criado.
 8. godot_create_audio_stream_player_3d {max_distance:30} → player 3D criado.

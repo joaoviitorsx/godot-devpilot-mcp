@@ -1,6 +1,6 @@
 {
   "name": "godopilot-mcp",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "One-command Godot MCP setup for Claude Code and Codex",
   "type": "module",
   "bin": {
@@ -19,6 +19,10 @@
     "README.md",
     "docs/installation.md",
     "docs/ai_game_development_roadmap.md",
+    "docs/engine_coverage_plan.md",
+    "docs/godot_api_gap_audit.md",
+    "docs/gdscript_scene_practices.md",
+    "docs/capability_manifest.json",
     "LICENSE"
   ],
   "scripts": {

@@ -7,6 +7,9 @@ export type ReadOnlyCheck = {
 
 const READ_ONLY_TOOL_ALLOWLIST = new Set([
   "devpilot_game_context",
+  "devpilot_find_tools",
+  "devpilot_review_gdscript",
+  "godot_inspect_object",
   "devpilot_audit_3d_scene",
   "godot_health_check",
   "godot_ping",
@@ -83,7 +86,6 @@ const READ_ONLY_TOOL_ALLOWLIST = new Set([
   "godot_assert_screenshot_matches",
   "godot_run_test_scenario",
   // Phase 13 — read-only (instructional) tools
-  "godot_add_animation_track",
   "godot_assign_shader_material",
   // Phase 15 — agentic read-only tools (planning, explanation, checklist)
   "godot_explain_project_architecture",

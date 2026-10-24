@@ -10,6 +10,8 @@ Hoje, `godot_get_capabilities` mostra as ferramentas ativas; `godot_get_classdb_
 
 ## Sequência após a estabilização da versão 2.8
 
+A primeira implementação da versão 2.9 entrega inventário verificável, busca por tarefa, introspecção paginada e operações tipadas básicas de recursos, animação, reimportação e exportação. O [levantamento de lacunas](godot_api_gap_audit.md) distingue essas entregas da cobertura ainda planejada. Os critérios abaixo continuam sendo os objetivos completos de cada etapa.
+
 | Etapa | Entrega | Critério de aceitação |
 | --- | --- | --- |
 | 1. Inventário verificável | Gerar um manifesto de ferramentas MCP, métodos RPC e versões suportadas; relacionar operações com categorias do Godot: cena, nó, recurso, importação, animação, física, navegação, áudio, UI, shader, partículas, exportação e runtime. | A geração detecta ferramenta sem método RPC correspondente, documentação desatualizada e capacidades indisponíveis por versão; CI publica um relatório resumido. |

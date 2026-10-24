@@ -5,6 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { loadConfig, validateProjectRoot } from "./config/config.js";
 import { GodotClient } from "./godot/client.js";
 import { registerCoreTools } from "./tools/coreTools.js";
+import { registerCapabilityDiscoveryTools } from "./tools/capabilityDiscoveryTools.js";
+import { registerResourceTools } from "./tools/resourceTools.js";
+import { registerBestPracticeTools } from "./tools/bestPracticeTools.js";
 import { registerDebugTools } from "./tools/debugTools.js";
 import { registerFileTools } from "./tools/fileTools.js";
 import { registerInputTools } from "./tools/inputTools.js";
@@ -101,6 +104,9 @@ const server = new McpServer({
 
 registerCoreTools(server, godot, config);
 if (config.mode !== "minimal") {
+registerCapabilityDiscoveryTools(server, godot, config);
+registerResourceTools(server, godot, config);
+registerBestPracticeTools(server, config);
 registerGameContextTools(server, config);
 registerScene3DAuditTools(server, config);
 registerProjectTools(server, godot, config);

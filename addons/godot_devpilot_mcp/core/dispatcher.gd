@@ -13,8 +13,10 @@ const InputTools = preload("res://addons/godot_devpilot_mcp/tools/input_tools.gd
 const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tools.gd")
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 const BetterTileEditorTools = preload("res://addons/godot_devpilot_mcp/tools/better_tile_editor_tools.gd")
+const CapabilityMethods = preload("res://addons/godot_devpilot_mcp/core/capability_methods.gd")
+const ResourceTools = preload("res://addons/godot_devpilot_mcp/tools/resource_tools.gd")
 
-const PLUGIN_VERSION := "2.8.0"
+const PLUGIN_VERSION := "2.9.0"
 const PROTOCOL_VERSION := "1.0.0"
 
 var editor_interface
@@ -28,6 +30,7 @@ var _input_tools: InputTools
 var _runtime_tools: RuntimeTools
 var _extended_tools: ExtendedTools
 var _better_tile_editor_tools: BetterTileEditorTools
+var _resource_tools: ResourceTools
 
 
 func setup(p_editor_interface, p_undo_redo = null) -> void:
@@ -61,6 +64,8 @@ func setup(p_editor_interface, p_undo_redo = null) -> void:
 	_extended_tools.setup(editor_interface, _undo_service)
 	_better_tile_editor_tools = BetterTileEditorTools.new()
 	_better_tile_editor_tools.setup(editor_interface)
+	_resource_tools = ResourceTools.new()
+	_resource_tools.setup(editor_interface, _undo_service)
 
 
 func dispatch(request: Variant) -> Dictionary:
@@ -166,6 +171,16 @@ func dispatch(request: Variant) -> Dictionary:
 			return Protocol.success_envelope(request_id, _script_tools.validate_script(params))
 		"script.get_classdb_info":
 			return Protocol.success_envelope(request_id, _script_tools.get_classdb_info(params))
+		"resource.inspect_object":
+			return Protocol.success_envelope(request_id, _resource_tools.inspect_object(params))
+		"resource.set_property":
+			return Protocol.success_envelope(request_id, _resource_tools.set_resource_property(params))
+		"resource.assign":
+			return Protocol.success_envelope(request_id, _resource_tools.assign_resource(params))
+		"anim.add_property_animation":
+			return Protocol.success_envelope(request_id, _resource_tools.add_property_animation(params))
+		"asset.reimport":
+			return Protocol.success_envelope(request_id, _resource_tools.reimport_asset(params))
 		"debug.run_project":
 			return Protocol.success_envelope(request_id, _debug_tools.run_project(params))
 		"debug.run_scene":
@@ -297,9 +312,9 @@ func dispatch(request: Variant) -> Dictionary:
 		"resource.read":
 			return Protocol.success_envelope(request_id, _extended_tools.read_resource(params))
 		"resource.edit":
-			return Protocol.success_envelope(request_id, _extended_tools.edit_resource(params))
+			return Protocol.success_envelope(request_id, _resource_tools.edit_external_resource(params))
 		"resource.create":
-			return Protocol.success_envelope(request_id, _extended_tools.create_resource(params))
+			return Protocol.success_envelope(request_id, _resource_tools.create_external_resource(params))
 		# Phase 19 — Batch
 		"batch.find_by_type":
 			return Protocol.success_envelope(request_id, _extended_tools.find_nodes_by_type(params))
@@ -377,77 +392,7 @@ func _get_capabilities(_params: Dictionary) -> Dictionary:
 		{
 			"plugin_version": PLUGIN_VERSION,
 			"protocol_version": PROTOCOL_VERSION,
-			"available_methods": [
-				"system.health_check",
-				"system.ping",
-				"system.get_capabilities",
-				"system.get_connection_status",
-				"system.get_protocol_version",
-				"project.get_info",
-				"project.get_editor_context",
-				"project.get_project_settings",
-				"project.get_open_scenes",
-				"project.get_selected_nodes",
-				"project.get_input_map",
-				"project.add_input_action",
-				"project.remove_input_action",
-				"project.get_autoloads",
-				"project.add_autoload",
-				"project.remove_autoload",
-				"scene.get_tree",
-				"scene.get_summary",
-				"scene.validate",
-				"scene.audit",
-				"scene.create",
-				"scene.open",
-				"scene.save",
-				"scene.duplicate",
-				"node.add",
-				"node.remove",
-				"node.rename",
-				"node.duplicate",
-				"node.reparent",
-				"node.get_properties",
-				"node.set_property",
-				"node.assign_3d_resource",
-				"node.get_groups",
-				"node.add_to_group",
-				"node.remove_from_group",
-				"script.attach",
-				"script.validate",
-				"script.get_classdb_info",
-				"debug.run_project",
-				"debug.run_scene",
-				"debug.stop_project",
-				"debug.is_running",
-				"screenshot.take_game",
-				"screenshot.take_editor",
-				"screenshot.get_viewport",
-				"input.press_action",
-				"input.release_action",
-				"input.press_key",
-				"input.release_key",
-				"input.tap_key",
-				"input.mouse_move",
-				"input.mouse_click",
-				"input.mouse_drag",
-				"input.run_sequence",
-				"runtime.get_tree",
-				"runtime.get_node_properties",
-				"runtime.set_node_property",
-				"runtime.get_fps",
-				"runtime.get_process_stats",
-				"runtime.find_node",
-				"runtime.get_current_camera",
-				"runtime.find_ui_element",
-				"runtime.click_ui_by_text",
-				"better_tile_editor.status",
-				"better_tile_editor.list_terrains",
-				"better_tile_editor.create_terrain",
-				"better_tile_editor.assign_tile",
-				"better_tile_editor.paint_terrain",
-				"tilemap.create_atlas"
-			],
+			"available_methods": CapabilityMethods.METHODS,
 			"features": {
 				"json_rpc": true,
 				"health_check": true,

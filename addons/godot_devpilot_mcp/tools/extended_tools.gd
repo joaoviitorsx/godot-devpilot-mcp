@@ -88,16 +88,6 @@ func execute_editor_script(params: Dictionary) -> Dictionary:
 		wrapped += "\t" + line + "\n"
 	wrapped += "\treturn _output\n"
 
-	var temp_dir := ProjectSettings.globalize_path("res://.godot_mcp/temp")
-	DirAccess.make_dir_recursive_absolute(temp_dir)
-	var temp_path := temp_dir + "/exec_editor.gd"
-
-	var file := FileAccess.open(temp_path, FileAccess.WRITE)
-	if file == null:
-		return ResponseFactory.error("WRITE_ERROR", "Cannot write temp script.", {}, [])
-	file.store_string(wrapped)
-	file.close()
-
 	var script: GDScript = GDScript.new()
 	script.source_code = wrapped
 	var err := script.reload()

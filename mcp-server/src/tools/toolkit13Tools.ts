@@ -262,29 +262,23 @@ export function registerToolkit13Tools(server: McpServer, godot: GodotClient, co
   // ── godot_add_animation_track ─────────────────────────────────────────────
   server.tool(
     "godot_add_animation_track",
-    "Document the steps to add a new Animation to an AnimationPlayer (returns instructions; Animation/AnimationLibrary resources cannot be instanced via JSON-RPC).",
+    "Create a real AnimationLibrary, Animation and typed property track with keyframes on an AnimationPlayer in the open scene. Supports UndoRedo.",
     {
       player_path: z.string().describe("AnimationPlayer node path."),
-      animation_name: z.string().describe("Animation name to create.")
+      animation_name: z.string().describe("Animation name to create."),
+      target_path: z.string().describe("Target node path relative to AnimationPlayer.root_node; '.' targets the root."),
+      property: z.string().describe("Stored property to animate, e.g. position, scale or modulate."),
+      length: z.number().positive().max(600).describe("Animation length in seconds."),
+      keys: z.array(z.object({ time: z.number().min(0), value: z.unknown() })).min(2).max(128).describe("Keyframes in strictly increasing time order."),
+      dry_run: z.boolean().optional()
     },
-    async ({ player_path, animation_name }) => toMcpResult(
-      await executeToolSafely(ctx("godot_add_animation_track", config), async (): Promise<ToolResponse> =>
-        createSuccessResponse(
-          {
-            player_path,
-            animation_name,
-            instructions: [
-              "Open the Animation panel in the bottom dock.",
-              `Select '${player_path}'.`,
-              "Click Animation → New, name it '" + animation_name + "'.",
-              "Add tracks via 'Add Track' for properties to animate.",
-              "Set keyframes by changing properties at the desired time."
-            ]
-          },
-          "Animation creation instructions returned.",
-          ["AnimationLibrary/Animation resources require editor-side authoring."]
-        )
-      )
+    async ({ player_path, animation_name, target_path, property: propertyName, length, keys, dry_run }) => toMcpResult(
+      await executeToolSafely(ctx("godot_add_animation_track", config), async (): Promise<ToolResponse> => {
+        if (dry_run) return createDryRunResponse({ toolName: "godot_add_animation_track", plannedChanges: [`Create '${animation_name}' on ${player_path}: ${target_path}.${propertyName} with ${keys.length} keyframes`], affectedFiles: [], affectedNodes: [player_path, target_path] });
+        const result = await callAfterConnect(godot, "anim.add_property_animation", { player_path, animation_name, target_path, property: propertyName, length, keys });
+        if (result.ok && (!(result.data instanceof Object) || (result.data as Record<string, unknown>).animation_name !== animation_name)) return createErrorResponse("EMPTY_PLUGIN_RESULT", "Godot did not confirm the animation. Check the editor output.", { player_path, animation_name }, []);
+        return result;
+      })
     )
   );
 

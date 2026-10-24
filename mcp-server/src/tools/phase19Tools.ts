@@ -7,6 +7,10 @@ import { createErrorResponse, createSuccessResponse, type ToolResponse } from ".
 import { createDryRunResponse } from "../safety/dryRun.js";
 import { executeToolSafely, type ToolExecutionContext } from "../safety/toolWrapper.js";
 import { resolveProjectPath } from "../safety/pathGuard.js";
+import { createFileBackup } from "../safety/backup.js";
+import { access, mkdir, readFile, stat } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import path from "node:path";
 
 function toMcpResult(response: ToolResponse): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }], isError: !response.ok };
@@ -22,6 +26,50 @@ function ctx(toolName: string, config: ServerConfig): ToolExecutionContext {
   return { toolName, readOnly: config.security.readOnly, projectRoot: config.projectRoot };
 }
 function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
+
+function requirePluginField(response: ToolResponse, field: string, method: string): ToolResponse {
+  if (response.ok && (typeof response.data !== "object" || response.data === null || !(field in response.data))) {
+    return createErrorResponse("EMPTY_PLUGIN_RESULT", "Godot did not confirm the change. Check the editor output.", { method, expected_field: field }, []);
+  }
+  return response;
+}
+
+async function hasExportPreset(projectRoot: string, name: string): Promise<boolean> {
+  const content = await readFile(path.join(projectRoot, "export_presets.cfg"), "utf8").catch(() => "");
+  let section = "";
+  for (const line of content.split(/\r?\n/)) {
+    const header = line.trim().match(/^\[([^\]]+)\]$/);
+    if (header) { section = header[1]; continue; }
+    if (/^preset\.\d+$/.test(section) && line.startsWith("name=")) {
+      const raw = line.slice(5).trim();
+      let parsed: string;
+      try { parsed = raw.startsWith('"') ? JSON.parse(raw) as string : raw; }
+      catch { continue; }
+      if (parsed === name) return true;
+    }
+  }
+  return false;
+}
+
+function runExport(godotBin: string, projectRoot: string, preset: string, output: string, debug: boolean, timeoutMs: number): Promise<{ code: number | null; output: string; timedOut: boolean }> {
+  return new Promise((resolve) => {
+    const child = spawn(godotBin, ["--headless", "--path", projectRoot, debug ? "--export-debug" : "--export-release", preset, output], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let log = "";
+    let timedOut = false;
+    let done = false;
+    const finish = (code: number | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({ code, output: log.slice(-12000), timedOut });
+    };
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
+    child.stdout.on("data", (chunk) => { log = (log + chunk.toString()).slice(-12000); });
+    child.stderr.on("data", (chunk) => { log = (log + chunk.toString()).slice(-12000); });
+    child.on("close", finish);
+    child.on("error", (error) => { log += `\n${error.message}`; finish(-1); });
+  });
+}
 
 export function registerPhase19Tools(server: McpServer, godot: GodotClient, config: ServerConfig): void {
 
@@ -41,15 +89,32 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
   // 2. godot_export_project
   server.tool(
     "godot_export_project",
-    "Generate the CLI command to export the project with a given preset. Returns the command string (does not execute it — use your terminal).",
+    "Export a real build with a configured Godot preset and verify the output. Works without an open editor; requires installed export templates and writes under res://builds/.",
     {
       preset_name: z.string().describe("Export preset name as shown in Project > Export."),
-      export_path: z.string().optional().describe("Output path. Defaults to preset's configured path."),
-      debug: z.boolean().optional().describe("Export debug build. Defaults to false.")
+      export_path: z.string().describe("Output file under res://builds/, e.g. res://builds/game.exe."),
+      debug: z.boolean().optional().describe("Export debug build. Defaults to false."),
+      godot_bin: z.string().optional().describe("Godot editor executable. Defaults to 'godot' on PATH."),
+      timeout_seconds: z.number().int().min(10).max(1800).optional(),
+      overwrite: z.boolean().optional(),
+      dry_run: z.boolean().optional()
     },
-    async (params) => {
+    async ({ preset_name, export_path, debug, godot_bin, timeout_seconds, overwrite, dry_run }) => {
       const result = await executeToolSafely(ctx("godot_export_project", config), async (): Promise<ToolResponse> => {
-        return callAfterConnect(godot, "export.export", params);
+        if (!(await hasExportPreset(config.projectRoot, preset_name))) return createErrorResponse("EXPORT_PRESET_NOT_FOUND", "Export preset was not found in export_presets.cfg.", { preset_name }, []);
+        const resPath = export_path;
+        if (!resPath.startsWith("res://builds/") || resPath.endsWith("/")) return createErrorResponse("INVALID_EXPORT_PATH", "Provide an output file under res://builds/.", { export_path: resPath }, []);
+        const target = resolveProjectPath(resPath, config.projectRoot);
+        if (dry_run) return createDryRunResponse({ toolName: "godot_export_project", plannedChanges: [`Export preset '${preset_name}' to ${resPath} with ${debug ? "debug" : "release"} templates`], affectedFiles: [resPath], affectedNodes: [] });
+        const exists = await access(target.absolutePath).then(() => true, () => false);
+        if (exists && !overwrite) return createErrorResponse("EXPORT_EXISTS", "Export target exists. Set overwrite=true to replace it.", { export_path: resPath }, []);
+        const backupPath = exists ? (await createFileBackup({ projectRoot: config.projectRoot, resPath, toolName: "godot_export_project", reason: "Overwrite exported build" })).backupResPath : null;
+        await mkdir(path.dirname(target.absolutePath), { recursive: true });
+        const run = await runExport(godot_bin ?? "godot", config.projectRoot, preset_name, target.absolutePath, debug ?? false, (timeout_seconds ?? 300) * 1000);
+        if (run.timedOut || run.code !== 0) return createErrorResponse("EXPORT_FAILED", run.timedOut ? "Godot export timed out." : "Godot export failed.", { exit_code: run.code, output: run.output, export_path: resPath, backup_path: backupPath }, ["Check the preset and install export templates for this Godot version."]);
+        const exported = await stat(target.absolutePath).catch(() => null);
+        if (!exported?.isFile() || exported.size === 0) return createErrorResponse("EXPORT_MISSING", "Godot exited successfully but produced no nonempty build file.", { export_path: resPath, output: run.output }, []);
+        return createSuccessResponse({ preset_name, export_path: resPath, bytes: exported.size, debug: debug ?? false, output: run.output, backup_path: backupPath }, "Build exported and verified.");
       });
       return toMcpResult(result);
     }
@@ -89,7 +154,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
   // 5. godot_edit_resource
   server.tool(
     "godot_edit_resource",
-    "Modify a single property on a .tres or .res resource and save it.",
+    "Modify a typed stored property on an existing .tres or .res resource and save it after creating a recoverable backup.",
     {
       path: z.string(),
       property: z.string().describe("Property name to modify."),
@@ -99,6 +164,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     async (params) => {
       const result = await executeToolSafely(ctx("godot_edit_resource", config), async (): Promise<ToolResponse> => {
         resolveProjectPath(params.path, config.projectRoot);
+        if (!/\.(tres|res)$/i.test(params.path)) return createErrorResponse("INVALID_RESOURCE_PATH", "Use an existing .tres or .res project resource.", {}, []);
         if (params.dry_run) {
           return createDryRunResponse({
             toolName: "godot_edit_resource",
@@ -107,7 +173,11 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "resource.edit", params);
+        const backup = await createFileBackup({ projectRoot: config.projectRoot, resPath: params.path, toolName: "godot_edit_resource", reason: `Edit ${params.property}` });
+        const result = requirePluginField(await callAfterConnect(godot, "resource.edit", params), "resource_path", "resource.edit");
+        return result.ok && typeof result.data === "object" && result.data !== null
+          ? { ...result, data: { ...result.data, backup_path: backup.backupResPath } }
+          : result;
       });
       return toMcpResult(result);
     }
@@ -116,7 +186,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
   // 6. godot_create_resource
   server.tool(
     "godot_create_resource",
-    "Create a new .tres resource of a given Godot class type.",
+    "Create a typed .tres resource. Existing resources require overwrite=true and receive a recoverable backup.",
     {
       path: z.string().describe("res:// output path (must end in .tres)."),
       resource_type: z.string().describe("ClassDB resource type e.g. 'Environment', 'PhysicsMaterial', 'AudioStreamWAV'."),
@@ -126,7 +196,8 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     },
     async (params) => {
       const result = await executeToolSafely(ctx("godot_create_resource", config), async (): Promise<ToolResponse> => {
-        resolveProjectPath(params.path, config.projectRoot);
+        const target = resolveProjectPath(params.path, config.projectRoot);
+        if (!params.path.endsWith(".tres")) return createErrorResponse("INVALID_RESOURCE_PATH", "Resource output must end in .tres.", {}, []);
         if (params.dry_run) {
           return createDryRunResponse({
             toolName: "godot_create_resource",
@@ -135,7 +206,18 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
             affectedNodes: []
           });
         }
-        return callAfterConnect(godot, "resource.create", params);
+        let backupPath: string | null = null;
+        if (params.overwrite) {
+          const exists = await access(target.absolutePath).then(() => true, () => false);
+          if (exists) {
+            const backup = await createFileBackup({ projectRoot: config.projectRoot, resPath: params.path, toolName: "godot_create_resource", reason: "Overwrite resource" });
+            backupPath = backup.backupResPath;
+          }
+        }
+        const result = requirePluginField(await callAfterConnect(godot, "resource.create", params), "path", "resource.create");
+        return backupPath && result.ok && typeof result.data === "object" && result.data !== null
+          ? { ...result, data: { ...result.data, backup_path: backupPath } }
+          : result;
       });
       return toMcpResult(result);
     }

@@ -180,16 +180,18 @@ export class GodotClient {
     this.lastDisconnectedAt = new Date().toISOString();
   }
 
-  async call(method: string, params: unknown = {}): Promise<ToolResponse> {
+  async call(method: string, params: unknown = {}, options: { timeoutMs?: number } = {}): Promise<ToolResponse> {
     if (!this.isConnected()) {
       return this.notConnectedError({ method });
     }
 
-    return this.sendRequest(method, params);
+    return this.sendRequest(method, params, options.timeoutMs);
   }
 
-  private async sendRequest(method: string, params: unknown): Promise<ToolResponse> {
+  private async sendRequest(method: string, params: unknown, requestedTimeoutMs?: number): Promise<ToolResponse> {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return this.notConnectedError({ method });
+
+    const timeoutMs = requestedTimeoutMs === undefined ? this.config.timeoutMs : Math.min(120_000, Math.max(100, requestedTimeoutMs));
 
     const request = createJsonRpcRequest(method, params);
 
@@ -200,11 +202,11 @@ export class GodotClient {
           createErrorResponse(
             "TIMEOUT",
             "The Godot plugin did not respond before the timeout.",
-            { method, timeout_ms: this.config.timeoutMs },
+            { method, timeout_ms: timeoutMs },
             ["Check the Godot editor output for a stuck or failing handler."]
           )
         );
-      }, this.config.timeoutMs);
+      }, timeoutMs);
 
       this.pendingRequests.set(request.id, { resolve, timeout });
       this.socket?.send(JSON.stringify({ ...request, auth: this.authToken }), (error) => {

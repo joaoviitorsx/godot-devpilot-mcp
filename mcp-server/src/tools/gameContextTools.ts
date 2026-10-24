@@ -90,9 +90,9 @@ export function registerGameContextTools(server: McpServer, config: ServerConfig
   }, async ({ goal, acceptance }) => prompt(
     `Implement this feature in my Godot game: ${goal}\nAcceptance criteria: ${acceptance || "Define observable player-facing criteria before editing."}\n` +
     "First read godot://project/context or call devpilot_game_context. Inspect the relevant scene, script and assets. " +
-    "Plan the smallest playable change, then implement it with the available tools. " +
-    "Validate changed scripts and scenes, run the game or a test scenario, inspect logs and report what was observed, files changed and remaining gaps. " +
-    "Follow the project's conventions and keep scenes self-contained where practical."
+    "Find a small set of relevant tools with devpilot_find_tools. Plan the smallest playable change, then implement it. " +
+    "Follow the project's naming and scene conventions; keep reusable scenes self-contained and use clear types where helpful. " +
+    "Review changed GDScript with devpilot_review_gdscript, validate scripts and scenes in Godot, run the game or a test scenario, inspect logs and report observed behavior, files changed and remaining gaps."
   ));
 
   server.registerPrompt("devpilot_playtest_loop", {

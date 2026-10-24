@@ -23,6 +23,12 @@ jobs:
           npm audit
       - name: Check package, plugin, and protocol versions
         run: node scripts/check-versions.mjs
+      - name: Verify MCP and editor capability inventory
+        run: node scripts/capability-report.mjs --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godopilot-capability-manifest
+          path: docs/capability_manifest.json
       - name: Test installer
         run: node --test scripts/install.test.mjs
       - name: Verify one-command shell bootstrap from npm package

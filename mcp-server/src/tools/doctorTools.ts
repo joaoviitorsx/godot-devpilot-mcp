@@ -77,31 +77,8 @@ function walkTreeForSmells(
 
   const children = node.children ?? [];
 
-  // Detect duplicate types among siblings
-  const typeCounts: Record<string, number> = {};
-  for (const child of children) {
-    const t = child.type ?? "Unknown";
-    typeCounts[t] = (typeCounts[t] ?? 0) + 1;
-  }
-  for (const [type, count] of Object.entries(typeCounts)) {
-    if (count > 3) {
-      smells.push({
-        kind: "many_same_type_children",
-        path: nodePath,
-        detail: `Has ${count} children of type "${type}". Consider using a group node or instancing a packed scene.`
-      });
-    }
-  }
-
-  // Detect siblings where some have scripts and one doesn't (inconsistency smell)
-  const siblingScriptCount = children.filter(c => c.script && c.script !== "").length;
-  if (siblingScriptCount > 0 && siblingScriptCount < children.length && children.length > 2) {
-    const noScriptChildren = children.filter(c => !c.script || c.script === "").map(c => c.name ?? "?");
-    smells.push({
-      kind: "inconsistent_script_coverage",
-      path: nodePath,
-      detail: `${siblingScriptCount} of ${children.length} children have scripts attached. Nodes without scripts: [${noScriptChildren.slice(0, 5).join(", ")}].`
-    });
+  if (checkNaming && node.name && !/^[A-Z][A-Za-z0-9]*$/.test(node.name) && !/^@/.test(node.name)) {
+    smells.push({ kind: "node_naming", path: nodePath, detail: `Node name "${node.name}" differs from Godot's PascalCase convention. Review before renaming paths referenced by scripts.` });
   }
 
   for (const child of children) {
@@ -574,7 +551,7 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
   // ── godot_analyze_scene_architecture ──────────────────────────────────────
   server.tool(
     "godot_analyze_scene_architecture",
-    "Deep analysis of the current scene: node tree, scripts attached, signals connected, groups, resource dependencies, naming conventions, potential design smells (deep nesting, nodes without names, suspected duplicates).",
+    "Review the current scene tree, attached scripts, connections, dependencies, node names and deep nesting. Findings are advisory; repeated node types and scriptless nodes are normal.",
     {
       max_depth_warning: z.number().optional().describe("Warn if node depth exceeds this. Default 8."),
       check_naming: z.boolean().optional().describe("Check node names for conventions. Default true.")
@@ -674,14 +651,9 @@ export function registerDoctorTools(server: McpServer, godot: GodotClient, confi
         if ((smellKindCounts.default_name ?? 0) > 0) {
           suggestions.push(`${smellKindCounts.default_name} node(s) have default names. Give them meaningful names to improve readability.`);
         }
-        if ((smellKindCounts.many_same_type_children ?? 0) > 0) {
-          suggestions.push("Some nodes have many children of the same type. Consider using a PackedScene instance or a dynamic container.");
-        }
-        if ((smellKindCounts.inconsistent_script_coverage ?? 0) > 0) {
-          suggestions.push("Some sibling nodes inconsistently have scripts. Review whether missing scripts are intentional.");
-        }
+        if ((smellKindCounts.node_naming ?? 0) > 0) suggestions.push(`${smellKindCounts.node_naming} node(s) differ from PascalCase naming. Rename only after checking NodePath references.`);
         if (stats.maxDepth > max_depth_warning + 4) {
-          suggestions.push(`Scene is very deep (max depth: ${stats.maxDepth}). Deeply nested scenes can cause performance issues in Godot 4.`);
+          suggestions.push(`Scene is deeply nested (max depth: ${stats.maxDepth}). Review ownership and reuse; depth alone does not establish a performance issue.`);
         }
         if (signalConnections.length > 20) {
           suggestions.push(`High signal connection count (${signalConnections.length}). Ensure connections are intentional and not creating hidden coupling.`);

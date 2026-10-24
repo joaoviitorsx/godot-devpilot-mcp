@@ -358,11 +358,11 @@ export function registerScriptTools(server: McpServer, godot: GodotClient, confi
 
   server.tool(
     "godot_get_classdb_info",
-    "Get ClassDB information for a Godot class.",
-    { class_name: z.string().describe("Godot class name.") },
-    async ({ class_name }) => toMcpResult(
+    "Get ClassDB information for a Godot engine class, optionally with paginated typed methods, properties, signals and enums. Script-defined class_name types are not in ClassDB.",
+    { class_name: z.string().describe("Godot engine class name."), detailed: z.boolean().optional(), include_inherited: z.boolean().optional(), offset: z.number().int().min(0).max(5000).optional(), limit: z.number().int().min(1).max(100).optional() },
+    async ({ class_name, detailed, include_inherited, offset, limit }) => toMcpResult(
       await executeToolSafely(ctx("godot_get_classdb_info", config), async (): Promise<ToolResponse> =>
-        callAfterConnect(godot, "script.get_classdb_info", { class_name })
+        callAfterConnect(godot, "script.get_classdb_info", { class_name, detailed, include_inherited, offset, limit })
       )
     )
   );

@@ -165,29 +165,64 @@ func get_classdb_info(params: Dictionary) -> Dictionary:
 	if not ClassDB.class_exists(class_name_value):
 		return ResponseFactory.error("CLASS_NOT_FOUND", "ClassDB class not found.", {"class_name": class_name_value}, ["Check the class name for Godot 4.x."])
 
+	var inherited: bool = bool(params.get("include_inherited", false))
+	var own_only := not inherited
+	var method_list := ClassDB.class_get_method_list(class_name_value, own_only)
+	var property_list := ClassDB.class_get_property_list(class_name_value, own_only)
+	var signal_list := ClassDB.class_get_signal_list(class_name_value, own_only)
 	var methods: Array[String] = []
-	for method in ClassDB.class_get_method_list(class_name_value, true):
+	for method in method_list:
 		methods.append(str(method.get("name", "")))
 		if methods.size() >= 50:
 			break
 
 	var properties: Array[String] = []
-	for property in ClassDB.class_get_property_list(class_name_value, true):
+	for property in property_list:
 		properties.append(str(property.get("name", "")))
 		if properties.size() >= 50:
 			break
+	var data := {
+		"class_name": class_name_value,
+		"exists": true,
+		"parent_class": ClassDB.get_parent_class(class_name_value),
+		"can_instantiate": ClassDB.can_instantiate(class_name_value),
+		"methods": methods,
+		"properties": properties
+	}
+	if bool(params.get("detailed", false)):
+		var offset := clampi(int(params.get("offset", 0)), 0, 5000)
+		var limit := clampi(int(params.get("limit", 25)), 1, 100)
+		var detailed_methods: Array[Dictionary] = []
+		for method in method_list.slice(offset, offset + limit):
+			var arguments: Array[Dictionary] = []
+			for argument in method.get("args", []):
+				arguments.append(_classdb_member(argument))
+			detailed_methods.append({"name": str(method.get("name", "")), "flags": int(method.get("flags", 0)), "return": _classdb_member(method.get("return", {})), "arguments": arguments})
+		var detailed_properties: Array[Dictionary] = []
+		for property in property_list.slice(offset, offset + limit):
+			detailed_properties.append(_classdb_member(property))
+		var detailed_signals: Array[Dictionary] = []
+		for signal_info in signal_list.slice(offset, offset + limit):
+			var signal_arguments: Array[Dictionary] = []
+			for argument in signal_info.get("args", []):
+				signal_arguments.append(_classdb_member(argument))
+			detailed_signals.append({"name": str(signal_info.get("name", "")), "arguments": signal_arguments})
+		var enums: Array[Dictionary] = []
+		for enum_name in ClassDB.class_get_enum_list(class_name_value, own_only).slice(0, 100):
+			var constants: Dictionary = {}
+			for constant in ClassDB.class_get_enum_constants(class_name_value, enum_name, own_only).slice(0, 100):
+				constants[str(constant)] = ClassDB.class_get_integer_constant(class_name_value, constant)
+			enums.append({"name": str(enum_name), "constants": constants})
+		data["detail"] = {"offset": offset, "limit": limit, "totals": {"methods": method_list.size(), "properties": property_list.size(), "signals": signal_list.size()}, "methods": detailed_methods, "properties": detailed_properties, "signals": detailed_signals, "enums": enums}
 
 	return ResponseFactory.success(
-		{
-			"class_name": class_name_value,
-			"exists": true,
-			"parent_class": ClassDB.get_parent_class(class_name_value),
-			"can_instantiate": ClassDB.can_instantiate(class_name_value),
-			"methods": methods,
-			"properties": properties
-		},
+		data,
 		"ClassDB info loaded."
 	)
+
+
+func _classdb_member(info: Dictionary) -> Dictionary:
+	return {"name": str(info.get("name", "")), "type": int(info.get("type", TYPE_NIL)), "class_name": str(info.get("class_name", "")), "hint": int(info.get("hint", 0)), "hint_string": str(info.get("hint_string", "")), "usage": int(info.get("usage", 0))}
 
 
 func _script_issue(path: String, line: int, column: int, message: String) -> Dictionary:

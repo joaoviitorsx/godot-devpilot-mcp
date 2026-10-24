@@ -14,7 +14,7 @@ const included = [
   "mcp-server/scripts", "mcp-server/package.json", "mcp-server/package-lock.json", "mcp-server/tsconfig.json",
   "evals/runner.js", "evals/cases", "evals/README.md",
   "README.md", "docs/installation.md", "docs/ai_game_development_roadmap.md", "docs/api_reference.md",
-  "docs/better_tile_editor.md", "docs/branding.md", "LICENSE", "CHANGELOG.md"
+  "docs/better_tile_editor.md", "docs/branding.md", "docs/engine_coverage_plan.md", "docs/godot_api_gap_audit.md", "docs/gdscript_scene_practices.md", "docs/capability_manifest.json", "LICENSE", "CHANGELOG.md"
 ];
 for (const item of included) if (!existsSync(path.join(root, item))) throw new Error(`Missing release input: ${item}`);
 mkdirSync(path.dirname(output), { recursive: true });

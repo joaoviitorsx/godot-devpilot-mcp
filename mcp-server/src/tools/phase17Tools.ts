@@ -30,14 +30,13 @@ function ctx(toolName: string, config: ServerConfig): ToolExecutionContext {
 export function registerPhase17Tools(server: McpServer, godot: GodotClient, config: ServerConfig): void {
   server.tool(
     "godot_execute_editor_script",
-    "Execute arbitrary GDScript in the editor context. Returns output captured from print() calls.",
+    "Advanced: execute arbitrary GDScript in the editor context. Returns output captured by _print(). The editor cannot interrupt a running script; prefer typed tools for routine changes.",
     {
-      code: z.string().min(1).describe("GDScript code to execute. Will be wrapped in a @tool RefCounted class."),
-      timeout_ms: z.number().optional().describe("Max execution time ms. Default 5000.")
+      code: z.string().min(1).describe("GDScript code to execute. Will be wrapped in a @tool RefCounted class.")
     },
-    async ({ code, timeout_ms }) => {
+    async ({ code }) => {
       const result = await executeToolSafely(ctx("godot_execute_editor_script", config), async (): Promise<ToolResponse> => {
-        return callAfterConnect(godot, "script.execute_editor", { code, timeout_ms });
+        return callAfterConnect(godot, "script.execute_editor", { code });
       });
       return toMcpResult(result);
     }
@@ -45,14 +44,13 @@ export function registerPhase17Tools(server: McpServer, godot: GodotClient, conf
 
   server.tool(
     "godot_execute_game_script",
-    "Execute arbitrary GDScript inside the running game scene. Requires project to be running.",
+    "Advanced: execute arbitrary GDScript against the running game scene. Requires project to be running; the editor cannot interrupt a running script.",
     {
-      code: z.string().min(1).describe("GDScript code to run in game context."),
-      timeout_ms: z.number().optional()
+      code: z.string().min(1).describe("GDScript code to run in game context.")
     },
-    async ({ code, timeout_ms }) => {
+    async ({ code }) => {
       const result = await executeToolSafely(ctx("godot_execute_game_script", config), async (): Promise<ToolResponse> => {
-        return callAfterConnect(godot, "script.execute_game", { code, timeout_ms });
+        return callAfterConnect(godot, "script.execute_game", { code });
       });
       return toMcpResult(result);
     }

@@ -31,7 +31,7 @@ The AI sees the editor as a typed tool surface — scenes, nodes, scripts, debug
 | 16 | Release prep (CHANGELOG, demos) | ✅ |
 | 2.x | Prompt-first workflows, genre blueprints, blueprint library, snapshots, CI | ✅ |
 
-**Version:** 2.8.0 — see `CHANGELOG.md`.
+**Version:** 2.9.0 — see `CHANGELOG.md`.
 **Build:** clean (`npm run build`).  
 **Tests:** run `npm test` in `mcp-server/` for the current count.
 **Tools registered:** varies by `minimal`, `core`, `full`, and `agentic`; `godot_get_capabilities` returns the exact active list.
@@ -75,6 +75,8 @@ Detailed steps, manual configuration, updates, and troubleshooting: [installatio
 
 For maintainers: [Graphify setup](docs/graphify.md) and [review plan](docs/review_plan.md).
 
+For AI generated gameplay code, follow the [GDScript and scene practices](docs/gdscript_scene_practices.md).
+
 Product naming proposal: [GodoPilot](docs/branding.md).
 
 Tiles and terrain: [Better Tile Editor integration](docs/better_tile_editor.md) (optional, Godot 4.6+).
@@ -85,7 +87,9 @@ For an existing 3D scene, `godot_create_character_body_3d`, `godot_create_primit
 
 For modular 3D levels, `godot_create_gridmap_3d` accepts an existing MeshLibrary or creates a collidable Block palette. `godot_get_gridmap_palette` lists valid item IDs; `godot_paint_gridmap_cells` places or erases up to 512 cells in one undoable action.
 
-First prompt to try: *"Call `devpilot_game_context`, tell me the main scene and the next playable feature, then use `devpilot_feature_loop` to implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md) and `docs/cookbook.md`.
+First prompt to try: *"Call `devpilot_game_context`, use `devpilot_find_tools` to choose tools for my next playable feature, then implement and verify it."* The MCP also exposes `godot://project/context` and prompts for features, playtesting, and tiles. See [AI game-development workflow](docs/ai_game_development_roadmap.md), [engine capability audit](docs/godot_api_gap_audit.md) and `docs/cookbook.md`.
+
+For detailed editor work, `godot_get_classdb_info` and `godot_inspect_object` reveal available properties. `godot_assign_resource` and `godot_set_resource_property` edit typed resources with UndoRedo. `godot_add_animation_track` creates a saved property animation, and `godot_reimport_asset` refreshes an imported asset. In `full` or `agentic`, `godot_export_project` runs a real headless export using an existing preset and installed templates. `devpilot_review_gdscript` gives advisory checks on style and scene coupling.
 
 ---
 

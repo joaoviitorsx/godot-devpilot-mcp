@@ -19,9 +19,9 @@ const QUICKSTART = `# DevPilot MCP — Quickstart
 ## Recommended flow for new projects
 
 1. **Check connection** → \`godot_health_check\`, then \`devpilot_game_context\` or \`godot://project/context\`
-2. **Pick a task** → use \`devpilot_feature_loop\`, \`devpilot_playtest_loop\`, or \`devpilot_tile_workflow\` as a prompt when your client supports MCP prompts
+2. **Pick a task** → use \`devpilot_find_tools\` to select a few relevant tools, or \`devpilot_feature_loop\`, \`devpilot_playtest_loop\`, or \`devpilot_tile_workflow\` as a prompt when your client supports MCP prompts
 3. **Define observable acceptance criteria**, inspect the relevant scene and scripts, and make the smallest playable change
-4. **Verify** → \`devpilot_verify_spec\`, \`devpilot_run_headless\`, or \`devpilot_run_gut_tests\` when GUT is installed
+4. **Verify** → \`devpilot_review_gdscript\` for changed scripts, Godot parser validation, \`devpilot_verify_spec\`, \`devpilot_run_headless\`, or \`devpilot_run_gut_tests\` when GUT is installed
 5. **Report evidence** → changed files, checks run, gameplay observed, and gaps that still need a manual playtest
 6. **For a new project**, use \`devpilot_init_wizard\` and optionally \`devpilot_list_archetypes\` / \`devpilot_create_project_archetype\`
 

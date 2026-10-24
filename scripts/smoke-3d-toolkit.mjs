@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import { GodotClient } from "../mcp-server/dist/godot/client.js";
 import { audit3DSceneSource } from "../mcp-server/dist/tools/scene3dAuditTools.js";
 import { registerToolkit3dTools } from "../mcp-server/dist/tools/toolkit3dTools.js";
+import { registerResourceTools } from "../mcp-server/dist/tools/resourceTools.js";
+import { registerPhase19Tools } from "../mcp-server/dist/tools/phase19Tools.js";
 
 const godotBin = process.argv[2];
 if (!godotBin || process.argv[3]) throw new Error("Usage: node scripts/smoke-3d-toolkit.mjs <godot-editor-binary>");
@@ -59,6 +61,9 @@ try {
     await delay(500);
   }
   assert.equal(connected, true, `Could not connect to Godot editor.\n${editorOutput}`);
+  const capabilities = await call("system.get_capabilities");
+  assert.ok(capabilities.data.available_methods.includes("resource.inspect_object"));
+  assert.ok(capabilities.data.available_methods.includes("resource.assign"));
 
   await call("scene.create", { path: "res://toolkit_3d_smoke.tscn", root_type: "Node3D", root_name: "Toolkit3D" });
   await call("scene.open", { path: "res://toolkit_3d_smoke.tscn" });
@@ -89,6 +94,44 @@ try {
   assert.equal(triangleAudit.ok, true, `${JSON.stringify(triangleAudit)}\n${editorOutput.slice(-3000)}`);
   assert.ok(triangleAudit.data.mesh_count >= 1, JSON.stringify(triangleAudit));
   assert.ok(triangleAudit.data.surface_count >= 1, JSON.stringify(triangleAudit));
+  const classInfo = await call("script.get_classdb_info", { class_name: "MeshInstance3D", detailed: true, limit: 10 });
+  assert.ok(classInfo.data.detail.methods.length > 0, JSON.stringify(classInfo));
+  assert.ok(classInfo.data.detail.properties.length > 0, JSON.stringify(classInfo));
+  const resourceHandlers = {};
+  registerResourceTools({ tool: (name, _description, _schema, handler) => { resourceHandlers[name] = handler; } }, client, {
+    projectRoot: root, security: { readOnly: false }
+  });
+  const reimported = JSON.parse((await resourceHandlers.godot_reimport_asset({ asset_path: "res://triangle.gltf" })).content[0].text);
+  assert.equal(reimported.ok, true, JSON.stringify(reimported));
+  assert.equal(reimported.data.imported_type, "PackedScene", JSON.stringify(reimported));
+  const assignedMaterial = JSON.parse((await resourceHandlers.godot_assign_resource({ node_path: "Sphere", property: "material_override", resource_type: "StandardMaterial3D" })).content[0].text);
+  assert.equal(assignedMaterial.ok, true, JSON.stringify(assignedMaterial));
+  const invalidMaterial = JSON.parse((await resourceHandlers.godot_assign_resource({ node_path: "Sphere", property: "material_override", resource_type: "AudioStreamWAV" })).content[0].text);
+  assert.equal(invalidMaterial.ok, false, "An incompatible Resource class must be rejected.");
+  const setColor = JSON.parse((await resourceHandlers.godot_set_resource_property({ node_path: "Sphere", resource_property: "material_override", property: "albedo_color", value: "#ff0000" })).content[0].text);
+  assert.equal(setColor.ok, true, JSON.stringify(setColor));
+  const materialInfo = JSON.parse((await resourceHandlers.godot_inspect_object({ node_path: "Sphere", resource_property: "material_override", limit: 100 })).content[0].text);
+  assert.equal(materialInfo.ok, true, JSON.stringify(materialInfo));
+  assert.equal(materialInfo.data.class_name, "StandardMaterial3D");
+  assert.ok(materialInfo.data.properties.some((property) => property.name === "albedo_color"));
+  const fileHandlers = {};
+  registerPhase19Tools({ tool: (name, _description, _schema, handler) => { fileHandlers[name] = handler; } }, client, {
+    projectRoot: root, security: { readOnly: false }
+  });
+  const resourceCreated = JSON.parse((await fileHandlers.godot_create_resource({ path: "res://smoke_material.tres", resource_type: "StandardMaterial3D", properties: { albedo_color: "#00ff00" } })).content[0].text);
+  assert.equal(resourceCreated.ok, true, JSON.stringify(resourceCreated));
+  const resourceEdited = JSON.parse((await fileHandlers.godot_edit_resource({ path: "res://smoke_material.tres", property: "roughness", value: 0.4 })).content[0].text);
+  assert.equal(resourceEdited.ok, true, JSON.stringify(resourceEdited));
+  assert.ok(resourceEdited.data.backup_path, JSON.stringify(resourceEdited));
+  const externalInfo = JSON.parse((await resourceHandlers.godot_inspect_object({ resource_path: "res://smoke_material.tres", limit: 100 })).content[0].text);
+  assert.equal(externalInfo.ok, true, JSON.stringify(externalInfo));
+  assert.ok(externalInfo.data.properties.some((property) => property.name === "roughness" && Math.abs(property.value - 0.4) < 0.001), JSON.stringify(externalInfo.data.properties.filter((property) => property.name === "roughness")));
+  const invalidEdit = JSON.parse((await fileHandlers.godot_edit_resource({ path: "res://smoke_material.tres", property: "roughness", value: { invalid: true } })).content[0].text);
+  assert.equal(invalidEdit.ok, false, "A mismatched resource value must be rejected.");
+  await call("node.add", { parent_path: ".", node_type: "AnimationPlayer", node_name: "AnimationPlayer" });
+  const animation = await call("anim.add_property_animation", { player_path: "AnimationPlayer", animation_name: "move_sphere", target_path: "Sphere", property: "position", length: 1, keys: [{ time: 0, value: { x: 0, y: 0, z: 0 } }, { time: 1, value: { x: 1, y: 0, z: 0 } }] });
+  assert.equal(animation.data.track_count, 1);
+  assert.equal(animation.data.key_count, 2);
   const forbidden = await client.call("node.assign_3d_resource", { node_path: "Sphere", property: "mesh", resource_type: "GDScript" });
   assert.equal(forbidden.ok, false, "Resource assignment must reject types outside its allowlist.");
   await call("scene.save");
@@ -99,6 +142,8 @@ try {
   assert.match(scene, /\[sub_resource type="BoxMesh"/);
   assert.match(scene, /\[sub_resource type="Environment"/);
   assert.match(scene, /\[sub_resource type="NavigationMesh"/);
+  assert.match(scene, /\[sub_resource type="Animation"/);
+  assert.match(scene, /\[sub_resource type="AnimationLibrary"/);
   assert.match(scene, /mesh = SubResource\(/);
   assert.match(scene, /shape = SubResource\(/);
   assert.match(scene, /environment = SubResource\(/);

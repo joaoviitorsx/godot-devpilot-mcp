@@ -131,13 +131,15 @@ describe("toolkit13 — Animation", () => {
     expect(nodeAddTypes(godot)).toContain("AnimationPlayer");
   });
 
-  it("add_animation_track returns instructions (read-only)", async () => {
+  it("add_animation_track creates a property animation through the editor bridge", async () => {
     const root = await makeRoot();
+    const godot = makeGodot();
+    (godot.call as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, data: { animation_name: "idle" }, message: "ok", warnings: [], suggestions: [] });
     const server = makeServer();
-    registerToolkit13Tools(server as never, makeGodot(), makeConfig(true, root) as never);
-    const r = parse(await server.run("godot_add_animation_track", { player_path: "AnimationPlayer", animation_name: "idle" }) as { content: Array<{ text: string }> });
+    registerToolkit13Tools(server as never, godot, makeConfig(false, root) as never);
+    const r = parse(await server.run("godot_add_animation_track", { player_path: "AnimationPlayer", animation_name: "idle", target_path: "Player", property: "position", length: 1, keys: [{ time: 0, value: { x: 0, y: 0 } }, { time: 1, value: { x: 10, y: 0 } }] }) as { content: Array<{ text: string }> });
     expect(r.ok).toBe(true);
-    expect(r.data.instructions.length).toBeGreaterThan(0);
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls.some((call) => call[0] === "anim.add_property_animation")).toBe(true);
   });
 
   it("create_animation_tree configures anim_player + active=true", async () => {

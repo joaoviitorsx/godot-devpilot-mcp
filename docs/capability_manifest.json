@@ -695,7 +695,7 @@
       "min_mode": "core",
       "min_godot": "4.3",
       "effect": "write_or_unknown",
-      "description": "Resource-based save system: SaveData class + SaveManager autoload (save/load/delete .tres slots in user://). Type-safe, signals on completion/failure.",
+      "description": "Versioned SaveData + SaveManager: validated pending .tres, last-good backup, recovery on load and completion/failure signals. Add migration steps before bumping the schema version.",
       "parameters": [],
       "rpc_methods": [],
       "source": "mcp-server/src/tools/qualityTools.ts"
@@ -2129,6 +2129,26 @@
       "parameters": [],
       "rpc_methods": [],
       "source": "mcp-server/src/tools/gameContextTools.ts"
+    },
+    {
+      "name": "devpilot_game_quality_audit",
+      "category": "workflow",
+      "min_mode": "core",
+      "min_godot": "4.3",
+      "effect": "read",
+      "description": "Audit five game-production risks: progression budget, controls, visual/audio evidence, editable responsive UI, and save/version-control maintenance. Optional numeric and input contracts make findings specific. Read-only and works without a connected Godot editor.",
+      "parameters": [
+        {
+          "name": "progression",
+          "optional": true
+        },
+        {
+          "name": "controls",
+          "optional": true
+        }
+      ],
+      "rpc_methods": [],
+      "source": "mcp-server/src/tools/gameQualityTools.ts"
     },
     {
       "name": "devpilot_generate_dungeon_layout",
@@ -6216,7 +6236,7 @@
       "min_mode": "core",
       "min_godot": "4.3",
       "effect": "read",
-      "description": "Get current frames-per-second. Works in editor (returns editor FPS) and during runtime (returns game FPS).",
+      "description": "Get current frames-per-second from the running game.",
       "parameters": [],
       "rpc_methods": [
         "runtime.get_fps"
@@ -7723,7 +7743,7 @@
       "min_mode": "core",
       "min_godot": "4.3",
       "effect": "read",
-      "description": "Run a sequence of test steps (assert/run_input/wait_for_condition/take_screenshot) and return aggregated results. Does not modify project files.",
+      "description": "Run a gameplay scenario: start/stop project, simulate input, wait for runtime state, capture screenshots and assert nodes/properties/images. Screenshots are saved in the project.",
       "parameters": [
         {
           "name": "steps",
@@ -7731,7 +7751,12 @@
         }
       ],
       "rpc_methods": [
-        "runtime.get_node_properties"
+        "debug.run_project",
+        "debug.stop_project",
+        "input.run_sequence",
+        "runtime.get_node_properties",
+        "runtime.get_tree",
+        "screenshot.take_game"
       ],
       "source": "mcp-server/src/tools/testTools.ts"
     },

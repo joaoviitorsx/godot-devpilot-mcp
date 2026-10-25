@@ -28,7 +28,7 @@ function ctx(toolName: string, config: ServerConfig) {
 
 const MOUSE_BUTTON = z.enum(["left", "right", "middle"]).describe("Mouse button to simulate.");
 
-const SEQUENCE_STEP = z.discriminatedUnion("type", [
+export const SEQUENCE_STEP = z.discriminatedUnion("type", [
   z.object({ type: z.literal("action_press"), action: z.string(), duration_ms: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("action_release"), action: z.string() }),
   z.object({ type: z.literal("key_press"), keycode: z.string(), duration_ms: z.number().int().nonnegative().optional() }),

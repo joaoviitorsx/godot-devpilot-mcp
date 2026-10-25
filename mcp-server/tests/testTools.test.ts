@@ -151,6 +151,56 @@ describe("testTools — assertions", () => {
     expect(r.data.passed).toBe(2);
     expect(r.data.failed).toBe(1);
   });
+
+  it("runs a full gameplay sequence with input, state wait and screenshot", async () => {
+    const root = await makeRoot();
+    const godot = makeGodot((method) => method === "runtime.get_node_properties"
+      ? { ok: true, data: { properties: { count: 2 } }, message: "ok", warnings: [], suggestions: [] }
+      : { ok: true, data: {}, message: "ok", warnings: [], suggestions: [] });
+    const server = makeServer();
+    registerTestTools(server as never, godot, makeConfig(false, root) as never);
+    const result = parse(await server.run("godot_run_test_scenario", {
+      steps: [
+        { name: "start", type: "run_project", params: {} },
+        { name: "collect", type: "run_input", params: { sequence: [{ type: "action_press", action: "collect", duration_ms: 100 }] } },
+        { name: "count", type: "wait_for_condition", params: { node_path: "Game/Inventory", property: "count", expected_value: 2 } },
+        { name: "proof", type: "take_screenshot", params: { output_path: "res://.godot_mcp/screenshots/collect.png" } },
+        { name: "end", type: "stop_project", params: {} }
+      ]
+    }) as { content: Array<{ text: string }> });
+    expect(result.data).toMatchObject({ total: 5, passed: 5, failed: 0 });
+    expect(vi.mocked(godot.call).mock.calls.map((call) => call[0])).toEqual([
+      "debug.run_project", "runtime.get_tree", "input.run_sequence", "runtime.get_node_properties", "screenshot.take_game", "debug.stop_project"
+    ]);
+  });
+
+  it("keeps assertion-only scenarios available in read-only mode and blocks input", async () => {
+    const godot = makeGodot();
+    const server = makeServer();
+    registerTestTools(server as never, godot, makeConfig(true) as never);
+    const result = parse(await server.run("godot_run_test_scenario", {
+      steps: [{ name: "press", type: "run_input", params: { sequence: [{ type: "action_press", action: "jump" }] } }]
+    }) as { content: Array<{ text: string }> });
+    expect(result).toMatchObject({ ok: false, error: { code: "READ_ONLY_MODE" } });
+    expect(godot.call).not.toHaveBeenCalled();
+  });
+
+  it("waits for the runtime bridge after starting a project", async () => {
+    let probes = 0;
+    const godot = makeGodot((method) => {
+      if (method === "runtime.get_tree" && probes++ === 0) {
+        return { ok: false, error: { code: "RUNTIME_BRIDGE_UNAVAILABLE", message: "starting", details: {}, suggestions: [] } };
+      }
+      return { ok: true, data: {}, message: "ok", warnings: [], suggestions: [] };
+    });
+    const server = makeServer();
+    registerTestTools(server as never, godot, makeConfig(false) as never);
+    const result = parse(await server.run("godot_run_test_scenario", {
+      steps: [{ name: "start", type: "run_project", params: { ready_timeout_ms: 1000 } }]
+    }) as { content: Array<{ text: string }> });
+    expect(result.data).toMatchObject({ total: 1, passed: 1, failed: 0 });
+    expect(probes).toBe(2);
+  });
 });
 
 describe("testTools — Phase 14 expansion", () => {

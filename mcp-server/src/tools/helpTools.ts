@@ -30,6 +30,7 @@ const QUICKSTART = `# DevPilot MCP — Quickstart
 ### Core (start here)
 - \`devpilot_init_wizard\` — first-run setup check
 - \`devpilot_game_context\` — concise game index with scenes, scripts, assets and missing references
+- \`devpilot_game_quality_audit\` — progression, controls, presentation, UI and persistence review with evidence and playtest steps
 - \`devpilot_list_archetypes\` / \`devpilot_create_project_archetype\` — fast-start playbooks
 - \`devpilot_list_blueprints\` / \`devpilot_describe_blueprint\` — discover building blocks
 - \`devpilot_list_presets\` / \`devpilot_apply_preset\` — input/layer/HUD presets

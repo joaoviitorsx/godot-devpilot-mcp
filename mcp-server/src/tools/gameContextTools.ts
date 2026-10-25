@@ -125,8 +125,8 @@ export function registerGameContextTools(server: McpServer, config: ServerConfig
     argsSchema: { behavior: z.string().min(1) }
   }, async ({ behavior }) => prompt(
     `Playtest this behavior in my Godot game: ${behavior}\n` +
-    "Read the game context and identify the relevant scene and controls. Define observable pass/fail criteria. " +
-    "Run the scene or project, exercise the input sequence or test scenario, inspect output logs and capture visual evidence when available. " +
+    "Read the game context and run devpilot_game_quality_audit. Identify the relevant scene and controls. Define observable pass/fail criteria, including progression/resource budget and the player's ability to reverse, cancel or return where the design expects it. " +
+    "Run the scene or project, exercise the input sequence or test scenario through start, action, result and persistence, inspect output logs and capture menu/gameplay/result visual evidence when available. " +
     "Distinguish confirmed results from assumptions. If it fails, identify the smallest fix and repeat the same check."
   ));
 
@@ -159,10 +159,12 @@ export function registerGameContextTools(server: McpServer, config: ServerConfig
     argsSchema: { concept: z.string().min(1), target_platform: z.string().optional() }
   }, async ({ concept, target_platform }) => prompt(
     `Help build this Godot game: ${concept}\nTarget platform: ${target_platform || "use the project's target or ask before platform-specific choices"}.\n` +
-    "Read devpilot_game_context and inspect existing scenes, scripts, assets and project settings. Preserve the creator's genre and intended 2D/3D perspective; do not substitute a built-in template for an unsupported genre. " +
+    "Read devpilot_game_context and devpilot_game_quality_audit; inspect existing scenes, scripts, assets and project settings. Preserve the creator's genre and intended 2D/3D perspective; do not substitute a built-in template for an unsupported genre. " +
     "Describe the player experience, core loop, controls, camera, progression, content needs and measurable acceptance criteria. Split work into small playable vertical slices with dependencies and risks. " +
+    "Set a progression budget with milestones, fastest legitimate route, resource costs and intended number of attempts; pass the numeric model to devpilot_game_quality_audit when applicable. Record each input action's expected player-facing effect and test reverse/cancel/early return where applicable. " +
     "For each slice, use devpilot_find_tools to select a few relevant engine tools, inspect the actual Godot classes and resources, implement, then validate scripts/scenes and run a focused gameplay check. " +
-    "Cover input, UI, audio, persistence, accessibility, performance, export and multiplayer only where the concept needs them. Treat placeholders and untested behavior as incomplete. " +
+    "Review visual and audio identity across menu, gameplay and result states. Author stable HUD layout with editable scenes, Containers/anchors and a Theme when useful; test target, narrow and wide resolutions. Version persistent data, validate writes, retain a recovery path and test save/load/migration. Keep the project under version control when appropriate. " +
+    "Cover accessibility, performance, export and multiplayer where the concept needs them. Treat placeholders and untested behavior as incomplete. " +
     "Record observed results and remaining work after each slice; do not claim the full game is finished from a parser check or generated files alone."
   ));
 }

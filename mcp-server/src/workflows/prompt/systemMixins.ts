@@ -62,31 +62,52 @@ func add_score(delta: int) -> void:
 
 const SAVE_SCRIPT = `extends Node
 # SaveSystem — register as autoload (Project Settings → Autoload).
-# Stores a JSON snapshot at user://save.json.
+# Versioned JSON snapshots, validated before replacing the primary save.
 
 const SAVE_PATH := "user://save.json"
+const TEMP_PATH := "user://save.pending.json"
+const BACKUP_PATH := "user://save.backup.json"
+const SAVE_VERSION := 1
 
-func save_game(state: Dictionary) -> void:
-\tvar f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+func save_game(state: Dictionary) -> bool:
+\tif int(state.get("schema_version", SAVE_VERSION)) != SAVE_VERSION:
+\t\treturn false
+\tvar payload := state.duplicate(true)
+\tpayload["schema_version"] = SAVE_VERSION
+\tvar f := FileAccess.open(TEMP_PATH, FileAccess.WRITE)
 \tif f == null:
-\t\tpush_warning("SaveSystem: cannot open %s for write" % SAVE_PATH)
-\t\treturn
-\tf.store_string(JSON.stringify(state))
+\t\tpush_warning("SaveSystem: cannot open pending save")
+\t\treturn false
+\tf.store_string(JSON.stringify(payload))
+\tf.flush()
+\tf.close()
+\tif _read_valid(TEMP_PATH).is_empty():
+\t\treturn false
+\tif FileAccess.file_exists(SAVE_PATH) and not _read_valid(SAVE_PATH).is_empty():
+\t\tif DirAccess.copy_absolute(SAVE_PATH, BACKUP_PATH) != OK:
+\t\t\treturn false
+\treturn DirAccess.rename_absolute(TEMP_PATH, SAVE_PATH) == OK
 
 func load_game() -> Dictionary:
-\tif not FileAccess.file_exists(SAVE_PATH):
-\t\treturn {}
-\tvar f := FileAccess.open(SAVE_PATH, FileAccess.READ)
-\tif f == null:
-\t\treturn {}
-\tvar text := f.get_as_text()
-\tvar parsed: Variant = JSON.parse_string(text)
-\tif typeof(parsed) == TYPE_DICTIONARY:
-\t\treturn parsed
-\treturn {}
+\tvar primary := _read_valid(SAVE_PATH)
+\treturn primary if not primary.is_empty() else _read_valid(BACKUP_PATH)
 
 func has_save() -> bool:
-\treturn FileAccess.file_exists(SAVE_PATH)
+\treturn FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists(BACKUP_PATH)
+
+func _read_valid(p: String) -> Dictionary:
+\tif not FileAccess.file_exists(p):
+\t\treturn {}
+\tvar parser := JSON.new()
+\tif parser.parse(FileAccess.get_file_as_string(p)) != OK:
+\t\treturn {}
+\tvar parsed: Variant = parser.data
+\tif not parsed is Dictionary:
+\t\treturn {}
+\tif int(parsed.get("schema_version", 0)) != SAVE_VERSION:
+\t\t# Add explicit migrations before increasing SAVE_VERSION.
+\t\treturn {}
+\treturn parsed
 `;
 
 const INVENTORY_SCRIPT = `extends Node

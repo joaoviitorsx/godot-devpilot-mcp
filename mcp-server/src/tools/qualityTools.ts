@@ -53,45 +53,87 @@ class_name SaveData
 `;
 
 const SAVE_MANAGER = `extends Node
-# Resource-based save system. Stores SaveData (.tres) at user://save_<slot>.tres.
+# Versioned resource saves with a validated pending file and last-good backup.
 
 const SAVE_DIR := "user://"
+const CURRENT_SCHEMA_VERSION := 1
 
 signal save_completed(slot: int)
 signal load_completed(slot: int, data)
 signal save_failed(reason: String)
 
 func save(data: SaveData, slot: int = 1) -> bool:
-	if data == null:
-		save_failed.emit("null SaveData")
+	if data == null or slot < 1:
+		save_failed.emit("Invalid SaveData or slot")
 		return false
-	var p := "%ssave_%d.tres" % [SAVE_DIR, slot]
-	var err := ResourceSaver.save(data, p)
-	if err == OK:
-		save_completed.emit(slot)
-		return true
-	save_failed.emit("ResourceSaver error: %d" % err)
-	return false
+	if data.schema_version != CURRENT_SCHEMA_VERSION:
+		save_failed.emit("Unsupported SaveData schema version")
+		return false
+	data.schema_version = CURRENT_SCHEMA_VERSION
+	var p := _path(slot)
+	var pending := _pending_path(slot)
+	var backup := _backup_path(slot)
+	var err := ResourceSaver.save(data, pending)
+	if err != OK or _read_valid(pending) == null:
+		save_failed.emit("Pending save failed validation: %d" % err)
+		return false
+	if FileAccess.file_exists(p) and _read_valid(p) != null:
+		err = DirAccess.copy_absolute(p, backup)
+		if err != OK:
+			save_failed.emit("Backup copy failed: %d" % err)
+			return false
+	err = DirAccess.rename_absolute(pending, p)
+	if err != OK:
+		save_failed.emit("Save replace failed: %d" % err)
+		return false
+	save_completed.emit(slot)
+	return true
 
 func load_slot(slot: int = 1) -> SaveData:
-	var p := "%ssave_%d.tres" % [SAVE_DIR, slot]
-	if not FileAccess.file_exists(p):
+	if slot < 1:
 		return null
-	var res := ResourceLoader.load(p)
-	if res is SaveData:
-		load_completed.emit(slot, res)
-		return res
-	return null
+	var data := _read_valid(_path(slot))
+	if data == null:
+		data = _read_valid(_backup_path(slot))
+	if data != null:
+		load_completed.emit(slot, data)
+	return data
 
 func has_slot(slot: int = 1) -> bool:
-	return FileAccess.file_exists("%ssave_%d.tres" % [SAVE_DIR, slot])
+	return slot > 0 and (FileAccess.file_exists(_path(slot)) or FileAccess.file_exists(_backup_path(slot)))
 
 func delete_slot(slot: int = 1) -> bool:
-	var p := "%ssave_%d.tres" % [SAVE_DIR, slot]
-	if FileAccess.file_exists(p):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
-		return true
-	return false
+	if slot < 1:
+		return false
+	var removed := false
+	for p in [_path(slot), _backup_path(slot), _pending_path(slot)]:
+		if FileAccess.file_exists(p):
+			if DirAccess.remove_absolute(p) != OK:
+				return false
+			removed = true
+	return removed
+
+func _path(slot: int) -> String:
+	return "%ssave_%d.tres" % [SAVE_DIR, slot]
+
+func _pending_path(slot: int) -> String:
+	return "%ssave_%d.pending.tres" % [SAVE_DIR, slot]
+
+func _backup_path(slot: int) -> String:
+	return "%ssave_%d.backup.tres" % [SAVE_DIR, slot]
+
+func _read_valid(p: String) -> SaveData:
+	if not FileAccess.file_exists(p):
+		return null
+	if not FileAccess.get_file_as_string(p).begins_with("[gd_resource"):
+		return null
+	var loaded := ResourceLoader.load(p, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if not loaded is SaveData:
+		return null
+	if loaded.schema_version != CURRENT_SCHEMA_VERSION:
+		# Add explicit migration steps before increasing CURRENT_SCHEMA_VERSION.
+		return null
+	return loaded
 `;
 
 // ── localization ─────────────────────────────────────────────────────────────
@@ -222,7 +264,7 @@ func test_subject_loads() -> void:
 export function registerQualityTools(server: McpServer, config: ServerConfig): void {
   server.tool(
     "devpilot_blueprint_save_schema",
-    "Resource-based save system: SaveData class + SaveManager autoload (save/load/delete .tres slots in user://). Type-safe, signals on completion/failure.",
+    "Versioned SaveData + SaveManager: validated pending .tres, last-good backup, recovery on load and completion/failure signals. Add migration steps before bumping the schema version.",
     ParamsSchema,
     async (params) =>
       toMcpResult(

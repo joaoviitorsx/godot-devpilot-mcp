@@ -7,6 +7,7 @@ export type ReadOnlyCheck = {
 
 const READ_ONLY_TOOL_ALLOWLIST = new Set([
   "devpilot_game_context",
+  "devpilot_game_quality_audit",
   "devpilot_find_tools",
   "devpilot_review_gdscript",
   "godot_inspect_object",

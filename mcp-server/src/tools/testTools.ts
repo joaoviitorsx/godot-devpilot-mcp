@@ -10,6 +10,7 @@ import { createErrorResponse, createSuccessResponse, type ToolResponse } from ".
 import { resolveProjectPath } from "../safety/pathGuard.js";
 import { executeToolSafely } from "../safety/toolWrapper.js";
 import { compareScreenshotFiles } from "./screenshotTools.js";
+import { SEQUENCE_STEP } from "./inputTools.js";
 
 function toMcpResult(response: ToolResponse): CallToolResult {
   return {
@@ -18,13 +19,19 @@ function toMcpResult(response: ToolResponse): CallToolResult {
   };
 }
 
-async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
+async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}, timeoutMs?: number): Promise<ToolResponse> {
   if (!godot.getStatus().connected) {
     const connection = await godot.connect();
     if (!connection.ok) return connection;
   }
-  return godot.call(method, params);
+  return godot.call(method, params, { timeoutMs });
 }
+
+const SCENARIO_STEP = z.object({
+  name: z.string().min(1),
+  type: z.enum(["run_project", "stop_project", "run_input", "wait_for_condition", "take_screenshot", "assert_node_exists", "assert_property_equals", "assert_screenshot_matches"]),
+  params: z.record(z.string(), z.unknown())
+});
 
 function ctx(toolName: string, config: ServerConfig) {
   return { toolName, readOnly: config.security.readOnly, projectRoot: config.projectRoot };
@@ -163,21 +170,111 @@ export function registerTestTools(server: McpServer, godot: GodotClient, config:
   // ── godot_run_test_scenario ───────────────────────────────────────────────
   server.tool(
     "godot_run_test_scenario",
-    "Run a sequence of test steps (assert/run_input/wait_for_condition/take_screenshot) and return aggregated results. Does not modify project files.",
+    "Run a gameplay scenario: start/stop project, simulate input, wait for runtime state, capture screenshots and assert nodes/properties/images. Screenshots are saved in the project.",
     {
-      steps: z.array(z.object({
-        name: z.string(),
-        type: z.enum(["assert_node_exists", "assert_property_equals", "assert_screenshot_matches"]),
-        params: z.record(z.string(), z.unknown())
-      })).min(1).describe("Ordered list of test steps.")
+      steps: z.array(SCENARIO_STEP).min(1).max(60).describe("Ordered steps. run_input params={sequence:[input steps]}; wait_for_condition params={node_path,property,expected_value,timeout_ms?}; take_screenshot params={output_path:res://...png}.")
     },
     async ({ steps }) => toMcpResult(
       await executeToolSafely(ctx("godot_run_test_scenario", config), async (): Promise<ToolResponse> => {
+        if (config.security.readOnly && steps.some((step) => ["run_project", "stop_project", "run_input", "take_screenshot"].includes(step.type))) {
+          return createErrorResponse("READ_ONLY_MODE", "Gameplay scenario actions require write mode.", {}, ["Use assertion and wait steps in read-only mode, or enable write mode for a full playtest."]);
+        }
         const results: Array<{ name: string; type: string; passed: boolean; detail: unknown }> = [];
 
         for (const step of steps) {
           let stepResult: ToolResponse;
           switch (step.type) {
+            case "run_project": {
+              const parsed = z.object({ ready_timeout_ms: z.number().int().positive().max(30_000).optional() }).safeParse(step.params);
+              if (!parsed.success) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Invalid project start parameters.", { issues: parsed.error.issues }, []);
+                break;
+              }
+              stepResult = await callAfterConnect(godot, "debug.run_project", {});
+              if (!stepResult.ok) break;
+              const start = Date.now();
+              const timeout = parsed.data.ready_timeout_ms ?? 10_000;
+              stepResult = createErrorResponse("RUNTIME_NOT_READY", "Game did not become inspectable before timeout.", { timeout_ms: timeout }, []);
+              while (Date.now() - start < timeout) {
+                const ready = await callAfterConnect(godot, "runtime.get_tree", {});
+                if (ready.ok) {
+                  stepResult = createSuccessResponse({ running: true, ready: true, elapsed_ms: Date.now() - start }, "Game ready.");
+                  break;
+                }
+                if (!["RUNTIME_BRIDGE_UNAVAILABLE", "RUNTIME_NOT_RUNNING", "NODE_NOT_FOUND"].includes(ready.error.code)) {
+                  stepResult = ready;
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 150));
+              }
+              if (!stepResult.ok) await callAfterConnect(godot, "debug.stop_project", {});
+              break;
+            }
+            case "stop_project":
+              stepResult = await callAfterConnect(godot, "debug.stop_project", {});
+              break;
+            case "run_input": {
+              const parsed = z.object({ sequence: z.array(SEQUENCE_STEP).min(1).max(100) }).safeParse(step.params);
+              if (!parsed.success) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Invalid input sequence.", { issues: parsed.error.issues }, []);
+                break;
+              }
+              const duration = parsed.data.sequence.reduce((total, event) => total + ("duration_ms" in event ? (event.duration_ms ?? 0) : 0), 0);
+              if (duration > 60_000) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Input sequence exceeds 60 seconds.", { duration_ms: duration }, []);
+                break;
+              }
+              stepResult = await callAfterConnect(godot, "input.run_sequence", { sequence: parsed.data.sequence }, Math.max(config.godot.timeoutMs, duration + 5000));
+              break;
+            }
+            case "wait_for_condition": {
+              const parsed = z.object({
+                node_path: z.string().min(1), property: z.string().min(1), expected_value: z.unknown(),
+                timeout_ms: z.number().int().positive().max(60_000).optional(),
+                poll_interval_ms: z.number().int().positive().max(5000).optional()
+              }).safeParse(step.params);
+              if (!parsed.success) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Invalid wait condition.", { issues: parsed.error.issues }, []);
+                break;
+              }
+              const { node_path, property, expected_value } = parsed.data;
+              const timeout = parsed.data.timeout_ms ?? 5000;
+              const interval = parsed.data.poll_interval_ms ?? 200;
+              const start = Date.now();
+              stepResult = createErrorResponse("WAIT_TIMEOUT", "Condition did not match before timeout.", { node_path, property, expected_value }, []);
+              while (Date.now() - start < timeout) {
+                const response = await callAfterConnect(godot, "runtime.get_node_properties", { node_path, properties: [property] });
+                if (response.ok) {
+                  const data = response.data as Record<string, unknown>;
+                  const props = (data?.properties ?? data) as Record<string, unknown>;
+                  const actual = props?.[property];
+                  if (JSON.stringify(actual) === JSON.stringify(expected_value)) {
+                    stepResult = createSuccessResponse({ matched: true, elapsed_ms: Date.now() - start, value: actual }, "Condition matched.");
+                    break;
+                  }
+                } else if (!["NODE_NOT_FOUND", "RUNTIME_NODE_NOT_FOUND", "RUNTIME_NOT_RUNNING", "RUNTIME_BRIDGE_UNAVAILABLE"].includes(response.error.code)) {
+                  stepResult = response;
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, interval));
+              }
+              break;
+            }
+            case "take_screenshot": {
+              const parsed = z.object({ output_path: z.string().startsWith("res://").endsWith(".png") }).safeParse(step.params);
+              if (!parsed.success) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Expected a res:// PNG output path.", { issues: parsed.error.issues }, []);
+                break;
+              }
+              const resolved = resolveProjectPath(parsed.data.output_path, config.projectRoot);
+              if (!resolved.resPath.startsWith("res://.godot_mcp/screenshots/")) {
+                stepResult = createErrorResponse("INVALID_PARAMS", "Scenario screenshots must be inside res://.godot_mcp/screenshots/.", { output_path: resolved.resPath }, []);
+                break;
+              }
+              await mkdir(path.dirname(resolved.absolutePath), { recursive: true });
+              stepResult = await callAfterConnect(godot, "screenshot.take_game", { output_path: resolved.resPath });
+              break;
+            }
             case "assert_node_exists":
               stepResult = await callAfterConnect(godot, "runtime.get_node_properties", {
                 node_path: step.params.node_path,
@@ -227,6 +324,7 @@ export function registerTestTools(server: McpServer, godot: GodotClient, config:
             passed: stepResult.ok,
             detail: stepResult.ok ? stepResult.data : stepResult.error
           });
+          if (step.type === "run_project" && !stepResult.ok) break;
         }
 
         const passed = results.filter((r) => r.passed).length;
@@ -248,11 +346,7 @@ export function registerTestTools(server: McpServer, godot: GodotClient, config:
     {
       name: z.string().min(1).describe("Scenario file name (without .json)."),
       description: z.string().optional().describe("Human-readable description."),
-      steps: z.array(z.object({
-        name: z.string(),
-        type: z.enum(["assert_node_exists", "assert_property_equals", "assert_screenshot_matches"]),
-        params: z.record(z.string(), z.unknown())
-      })).min(1).describe("Ordered test steps."),
+      steps: z.array(SCENARIO_STEP).min(1).max(60).describe("Ordered gameplay and assertion steps."),
       overwrite: z.boolean().optional().describe("Overwrite if exists. Defaults to false.")
     },
     async ({ name, description, steps, overwrite }) => toMcpResult(

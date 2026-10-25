@@ -60,7 +60,7 @@ To verify the editor connection, run `node .godot_mcp/runtime/doctor.mjs` from t
 | Verify behavior | Run the game, collect logs, capture screenshots, simulate input, assert properties, and run headless tests. |
 | Stay in control | Preview changes with dry run, work in read only mode, use backups, and undo supported editor actions. |
 
-The AI can find relevant tools with `devpilot_find_tools` instead of scanning the full catalog. Start with `devpilot_game_context` for a project overview; use `godot_get_capabilities` when you need the exact active tool list. [Browse the full reference](docs/api_reference.md).
+The AI can find relevant tools with `devpilot_find_tools` instead of scanning the full catalog. Start with `devpilot_game_context` for a project overview. Run `devpilot_game_quality_audit` to review progression, controls, presentation, UI layout, and save maintenance before polishing a game. Use `godot_get_capabilities` when you need the exact active tool list. [Browse the full reference](docs/api_reference.md).
 
 ### Prompts to try
 
@@ -80,6 +80,8 @@ Use my existing assets where possible, then playtest the result.
 ```
 
 For an unfamiliar genre, ask the assistant to use `devpilot_game_production_loop` with your concept and build one verified playable slice at a time. For a ready 3D starting point, `devpilot_create_3d_starter` supports FPS and TPS scenes. The [cookbook](docs/cookbook.md) has longer examples.
+
+For an end-to-end check, `godot_run_test_scenario` can start the game, simulate input, wait for a runtime property, capture a screenshot, assert the result, and stop the game. The quality audit is read only; visual quality and game feel still need a playtest.
 
 ## How it works
 

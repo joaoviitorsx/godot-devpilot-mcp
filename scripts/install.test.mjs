@@ -44,15 +44,21 @@ test("installs addon and merges Claude config without losing another server", ()
     assert.match(instructions, /Preserve meus arquivos/);
     assert.match(instructions, /devpilot_game_context/);
     assert.match(readFileSync(path.join(root, "project.godot"), "utf8"), /enabled=PackedStringArray\("res:\/\/addons\/godot_devpilot_mcp\/plugin.cfg"\)/);
+    assert.match(readFileSync(path.join(root, "project.godot"), "utf8"), /DevPilotRuntimeBridge="\*res:\/\/addons\/godot_devpilot_mcp\/core\/runtime_bridge.gd"/);
     const doctor = spawnSync(process.execPath, [cli, "doctor", "--offline", "--json"], { encoding: "utf8", cwd: root });
     assert.equal(doctor.status, 0, doctor.stderr + doctor.stdout);
     assert.equal(JSON.parse(doctor.stdout).passed, true);
+    assert.equal(JSON.parse(doctor.stdout).checks.find((check) => check.name === "game runtime bridge")?.ok, true);
     const repeat = spawnSync(process.execPath, [cli, "--skip-build", "--client", "claude"], { encoding: "utf8", cwd: root });
     assert.equal(repeat.status, 0, repeat.stderr);
     assert.match(repeat.stdout, /already current/);
     assert.match(repeat.stdout, /already configured/);
     assert.match(repeat.stdout, /already enabled/);
     assert.equal(readFileSync(path.join(root, "CLAUDE.md"), "utf8"), instructions);
+    const projectWithoutBridge = readFileSync(path.join(root, "project.godot"), "utf8").replace(/^DevPilotRuntimeBridge=.*\r?\n/m, "");
+    writeFileSync(path.join(root, "project.godot"), projectWithoutBridge);
+    const missingBridge = spawnSync(process.execPath, [cli, "doctor", "--offline", "--json"], { encoding: "utf8", cwd: root });
+    assert.equal(JSON.parse(missingBridge.stdout).checks.find((check) => check.name === "game runtime bridge")?.ok, false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -65,10 +71,39 @@ test("enables the addon alongside existing Godot editor plugins", () => {
     const project = readFileSync(path.join(root, "project.godot"), "utf8");
     assert.match(project, /enabled=PackedStringArray\("res:\/\/addons\/other\/plugin.cfg", "res:\/\/addons\/godot_devpilot_mcp\/plugin.cfg"\)/);
     assert.match(project, /\[application\]\nconfig\/name="Game"/);
+    assert.match(project, /DevPilotRuntimeBridge="\*res:\/\/addons\/godot_devpilot_mcp\/core\/runtime_bridge.gd"/);
     const backupRoot = path.join(root, ".godot_mcp", "install-backups");
     assert.ok(readdirSync(backupRoot).some((name) => name.endsWith("project.godot")));
     assert.equal(invoke(root).status, 0);
     assert.equal(readdirSync(backupRoot).filter((name) => name.endsWith("project.godot")).length, 1);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("preserves existing autoloads and rejects a conflicting bridge name", () => {
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, "project.godot"), 'config_version=5\n\n[autoload]\n\nGameState="*res://scripts/game_state.gd"\n\n[application]\nconfig/name="Game"\n');
+    assert.equal(invoke(root).status, 0);
+    const project = readFileSync(path.join(root, "project.godot"), "utf8");
+    assert.match(project, /GameState="\*res:\/\/scripts\/game_state.gd"/);
+    assert.match(project, /DevPilotRuntimeBridge="\*res:\/\/addons\/godot_devpilot_mcp\/core\/runtime_bridge.gd"/);
+    assert.equal(invoke(root).status, 0);
+    writeFileSync(path.join(root, "project.godot"), project.replace('DevPilotRuntimeBridge="*res://addons/godot_devpilot_mcp/core/runtime_bridge.gd"', 'DevPilotRuntimeBridge="*res://scripts/other.gd"'));
+    const conflict = invoke(root);
+    assert.equal(conflict.status, 1);
+    assert.match(conflict.stderr, /different script/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("configures the game bridge when plugin activation needs manual work", () => {
+  const root = fixture();
+  try {
+    writeFileSync(path.join(root, "project.godot"), 'config_version=5\n[editor_plugins]\nenabled=Array[]\n');
+    const result = invoke(root);
+    assert.equal(result.status, 0, result.stderr);
+    const project = readFileSync(path.join(root, "project.godot"), "utf8");
+    assert.match(project, /enabled=Array\[\]/);
+    assert.match(project, /DevPilotRuntimeBridge="\*res:\/\/addons\/godot_devpilot_mcp\/core\/runtime_bridge.gd"/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

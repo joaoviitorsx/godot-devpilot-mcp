@@ -24,15 +24,17 @@ function ctx(toolName: string, config: ServerConfig) {
 
 // ── File scanning utilities ──────────────────────────────────────────────────
 
-async function findFilesByExtensions(dir: string, extensions: string[]): Promise<string[]> {
+async function findFilesByExtensions(dir: string, extensions: string[], skipAddons = false): Promise<string[]> {
   const results: string[] = [];
   try {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const e of entries) {
-      if (e.name.startsWith(".") || e.name === "node_modules") continue;
+      // Installed editor plugins are dependencies, not game source. Scanning them
+      // makes their ClassDB references look like missing game autoloads.
+      if (e.name.startsWith(".") || e.name === "node_modules" || (skipAddons && e.name === "addons")) continue;
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        const sub = await findFilesByExtensions(full, extensions);
+        const sub = await findFilesByExtensions(full, extensions, skipAddons);
         results.push(...sub);
       } else if (extensions.some(ext => e.name.endsWith(ext))) {
         results.push(full);
@@ -45,7 +47,7 @@ async function findFilesByExtensions(dir: string, extensions: string[]): Promise
 }
 
 async function findGdFiles(dir: string): Promise<string[]> {
-  return findFilesByExtensions(dir, [".gd"]);
+  return findFilesByExtensions(dir, [".gd"], true);
 }
 
 async function findProjectFiles(dir: string): Promise<string[]> {
@@ -93,18 +95,20 @@ const BUILTIN_CLASSES = new Set([
   "FileAccess","DirAccess"
 ]);
 
-// Match PascalCase identifiers used as: PascalCaseName.method_or_property
-const SINGLETON_RE = /\b([A-Z][A-Za-z0-9]+)\.[a-z_]/g;
+// Match PascalCase identifiers used as: PascalCaseName.method_or_property.
+// A call to ClassName.new() is an instantiation, not an autoload reference.
+const SINGLETON_RE = /(?<!\.)\b([A-Z][A-Za-z0-9]*)\.([a-z_][A-Za-z0-9_]*)/g;
 
 async function extractSingletonsFromFile(filePath: string): Promise<string[]> {
   const singletons = new Set<string>();
   try {
     const content = await readFile(filePath, "utf8");
+    const localNames = new Set([...content.matchAll(/\b(?:const|var|class_name|class)\s+([A-Z][A-Za-z0-9]*)\b/g)].map((m) => m[1]));
     let match: RegExpExecArray | null;
     SINGLETON_RE.lastIndex = 0;
     while ((match = SINGLETON_RE.exec(content)) !== null) {
       const name = match[1];
-      if (!BUILTIN_CLASSES.has(name)) {
+      if (match[2] !== "new" && !localNames.has(name) && !BUILTIN_CLASSES.has(name)) {
         singletons.add(name);
       }
     }
@@ -112,6 +116,40 @@ async function extractSingletonsFromFile(filePath: string): Promise<string[]> {
     // ignore unreadable files
   }
   return [...singletons];
+}
+
+async function projectSettingNames(projectRoot: string, section: string): Promise<string[]> {
+  const content = await readFile(path.join(projectRoot, "project.godot"), "utf8").catch(() => "");
+  const names: string[] = [];
+  let currentSection = "";
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const header = /^\[([^\]]+)\]$/.exec(trimmed);
+    if (header) { currentSection = header[1]; continue; }
+    if (currentSection !== section || trimmed.startsWith(";")) continue;
+    const setting = /^([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(trimmed);
+    if (setting) names.push(setting[1]);
+  }
+  return names;
+}
+
+async function projectInputEventCounts(projectRoot: string): Promise<Map<string, number>> {
+  const content = await readFile(path.join(projectRoot, "project.godot"), "utf8").catch(() => "");
+  const counts = new Map<string, number>();
+  let inInput = false;
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const header = /^\[([^\]]+)\]$/.exec(trimmed);
+    if (header) { inInput = header[1] === "input"; continue; }
+    if (!inInput || trimmed.startsWith(";")) continue;
+    const setting = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(trimmed);
+    if (!setting) continue;
+    // Godot stores the event array inside each input action dictionary. We
+    // only need to distinguish an empty binding from at least one event.
+    const events = /["']?events["']?\s*:\s*\[\s*([^\]])/.exec(setting[2]);
+    counts.set(setting[1], events ? 1 : 0);
+  }
+  return counts;
 }
 
 function extractRegisteredAutoloadNames(autoloadsData: unknown): string[] {
@@ -179,7 +217,7 @@ export async function inferInputActions(godot: GodotClient, projectRoot: string)
   const found = [...new Set((await Promise.all(gdFiles.map(extractActionsFromFile))).flat())].sort();
   const response = await callAfterConnect(godot, "project.get_input_map", {});
   if (!response.ok) return response;
-  const registered = extractRegisteredActionNames(response.data);
+  const registered = [...new Set([...extractRegisteredActionNames(response.data), ...await projectSettingNames(projectRoot, "input")])];
   return createSuccessResponse({ found_in_scripts: found, registered_actions: registered, missing_actions: found.filter((name) => !registered.includes(name)) });
 }
 
@@ -188,7 +226,7 @@ export async function inferAutoloads(godot: GodotClient, projectRoot: string): P
   const found = [...new Set((await Promise.all(gdFiles.map(extractSingletonsFromFile))).flat())].sort();
   const response = await callAfterConnect(godot, "project.get_autoloads", {});
   if (!response.ok) return response;
-  const registered = extractRegisteredAutoloadNames(response.data);
+  const registered = [...new Set([...extractRegisteredAutoloadNames(response.data), ...await projectSettingNames(projectRoot, "autoload")])];
   return createSuccessResponse({ found_in_scripts: found, registered_autoloads: registered, missing_singletons: found.filter((name) => !registered.includes(name)) });
 }
 
@@ -215,7 +253,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
         const inputMapResp = await callAfterConnect(godot, "project.get_input_map", {});
         if (!inputMapResp.ok) return inputMapResp;
 
-        const registeredActions = extractRegisteredActionNames(inputMapResp.data);
+        const registeredActions = [...new Set([...extractRegisteredActionNames(inputMapResp.data), ...await projectSettingNames(config.projectRoot, "input")])];
         const registeredSet = new Set(registeredActions);
         const missingActions = foundInScripts.filter(a => !registeredSet.has(a));
 
@@ -265,7 +303,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
         const autoloadsResp = await callAfterConnect(godot, "project.get_autoloads", {});
         if (!autoloadsResp.ok) return autoloadsResp;
 
-        const registeredAutoloads = extractRegisteredAutoloadNames(autoloadsResp.data);
+        const registeredAutoloads = [...new Set([...extractRegisteredAutoloadNames(autoloadsResp.data), ...await projectSettingNames(config.projectRoot, "autoload")])];
         const registeredSet = new Set(registeredAutoloads);
         const missingSingletons = foundInScripts.filter(s => !registeredSet.has(s));
 
@@ -364,6 +402,9 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
         if (!inputMapResp.ok) return inputMapResp;
 
         const actionEventMap = extractActionsWithEvents(inputMapResp.data);
+        for (const [name, count] of await projectInputEventCounts(config.projectRoot)) {
+          actionEventMap.set(name, Math.max(count, actionEventMap.get(name) ?? 0));
+        }
         const registeredSet = new Set(actionEventMap.keys());
 
         const missingActions = foundInScripts.filter(a => !registeredSet.has(a));
@@ -394,7 +435,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
         const autoloadsResp = await callAfterConnect(godot, "project.get_autoloads", {});
         if (!autoloadsResp.ok) return autoloadsResp;
 
-        const registeredAutoloads = extractRegisteredAutoloadNames(autoloadsResp.data);
+        const registeredAutoloads = [...new Set([...extractRegisteredAutoloadNames(autoloadsResp.data), ...await projectSettingNames(config.projectRoot, "autoload")])];
         const invalidAutoloads: string[] = [];
 
         // Verify each autoload script can be read
@@ -560,7 +601,7 @@ export function registerInferTools(server: McpServer, godot: GodotClient, config
         const autoloadsResp = await callAfterConnect(godot, "project.get_autoloads", {});
         if (!autoloadsResp.ok) return autoloadsResp;
 
-        const registeredAutoloads = extractRegisteredAutoloadNames(autoloadsResp.data);
+        const registeredAutoloads = [...new Set([...extractRegisteredAutoloadNames(autoloadsResp.data), ...await projectSettingNames(config.projectRoot, "autoload")])];
         const registeredSet = new Set(registeredAutoloads);
         const missingSingletons = foundInScripts.filter(s => !registeredSet.has(s));
 

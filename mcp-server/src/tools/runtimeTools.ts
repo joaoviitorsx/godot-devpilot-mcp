@@ -36,7 +36,7 @@ export function registerRuntimeTools(server: McpServer, godot: GodotClient, conf
     "godot_get_runtime_tree",
     "Inspect the running scene tree. Requires the game to be running.",
     {
-      max_depth: z.number().int().positive().max(20).optional().describe("Max tree depth. Defaults to 10."),
+      max_depth: z.number().int().positive().max(12).optional().describe("Max tree depth. Defaults to 10."),
       include_properties: z.boolean().optional().describe("Include common properties per node. Defaults to false.")
     },
     async ({ max_depth, include_properties }) => toMcpResult(
@@ -83,7 +83,7 @@ export function registerRuntimeTools(server: McpServer, godot: GodotClient, conf
   // ── godot_get_fps ──────────────────────────────────────────────────────────
   server.tool(
     "godot_get_fps",
-    "Get current frames-per-second. Works in editor (returns editor FPS) and during runtime (returns game FPS).",
+    "Get current frames-per-second from the running game.",
     {},
     async () => toMcpResult(
       await executeToolSafely(ctx("godot_get_fps", config), async (): Promise<ToolResponse> =>

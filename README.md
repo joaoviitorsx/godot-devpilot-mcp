@@ -39,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/mai
 irm https://raw.githubusercontent.com/joaoviitorsx/godot-devpilot-mcp/main/install.ps1 | iex
 ```
 
-The installer adds the Godot editor plugin and a local MCP runtime to this game, enables the plugin, configures the clients it finds, and adds short project guidance for the AI. Existing client instructions are preserved.
+The installer adds the Godot editor plugin, a game runtime bridge, and a local MCP server to this game. It enables the plugin and runtime autoload, configures the clients it finds, and adds short project guidance for the AI. Existing client instructions are preserved.
 
 **Then:**
 
@@ -91,6 +91,9 @@ GodoPilot server (local Node.js process)
         │ authenticated WebSocket on 127.0.0.1
         ▼
 GodoPilot plugin inside the Godot editor
+        │ Godot debugger channel for playtests
+        ▼
+GodoPilot runtime bridge inside the running game
         ▼
 Your game project
 ```

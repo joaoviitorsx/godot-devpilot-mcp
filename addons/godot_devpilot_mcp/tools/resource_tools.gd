@@ -21,6 +21,15 @@ func _valid_resource_path(value: String) -> bool:
 	return true
 
 
+func _valid_script_path(value: String) -> bool:
+	if not value.begins_with("res://") or value.contains("\\") or not value.ends_with(".gd"):
+		return false
+	for segment in value.trim_prefix("res://").split("/"):
+		if segment == "" or segment == "." or segment == "..":
+			return false
+	return true
+
+
 func _valid_asset_path(value: String) -> bool:
 	if not value.begins_with("res://") or value.contains("\\"):
 		return false
@@ -128,6 +137,10 @@ func _coerce(info: Dictionary, value: Variant) -> Dictionary:
 			if typeof(value) == TYPE_BOOL: return {"ok": true, "value": value}
 		TYPE_INT:
 			if typeof(value) == TYPE_INT: return {"ok": true, "value": value}
+			# JSON numbers arrive through the WebSocket bridge as floats. Accept
+			# only exactly representable integers to avoid silent truncation.
+			if typeof(value) == TYPE_FLOAT and value >= -9007199254740991.0 and value <= 9007199254740991.0 and value == floorf(value):
+				return {"ok": true, "value": int(value)}
 		TYPE_FLOAT:
 			if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT: return {"ok": true, "value": float(value)}
 		TYPE_STRING:
@@ -196,11 +209,31 @@ func create_external_resource(params: Dictionary) -> Dictionary:
 	var resource_type := str(params.get("resource_type", ""))
 	if not _valid_resource_path(resource_path) or not resource_path.ends_with(".tres"):
 		return ResponseFactory.error("INVALID_RESOURCE_PATH", "A project .tres output path is required.", {"path": resource_path}, [])
-	if not ClassDB.class_exists(resource_type) or not ClassDB.can_instantiate(resource_type) or not ClassDB.is_parent_class(resource_type, "Resource"):
-		return ResponseFactory.error("INVALID_RESOURCE_TYPE", "Resource type must be an instantiable built-in Resource class.", {"resource_type": resource_type}, [])
 	if FileAccess.file_exists(resource_path) and not bool(params.get("overwrite", false)):
 		return ResponseFactory.error("FILE_ALREADY_EXISTS", "Resource already exists.", {"path": resource_path}, [])
-	var resource: Resource = ClassDB.instantiate(resource_type) as Resource
+	var resource: Resource = null
+	if ClassDB.class_exists(resource_type) and ClassDB.can_instantiate(resource_type) and ClassDB.is_parent_class(resource_type, "Resource"):
+		resource = ClassDB.instantiate(resource_type) as Resource
+	else:
+		var script_path := ""
+		if resource_type.begins_with("res://") and resource_type.ends_with(".gd"):
+			script_path = resource_type
+		else:
+			for entry in ProjectSettings.get_global_class_list():
+				if str(entry.get("class", "")) == resource_type:
+					script_path = str(entry.get("path", ""))
+					break
+		if not _valid_script_path(script_path):
+			return ResponseFactory.error("INVALID_RESOURCE_TYPE", "Resource type must be a built-in Resource, registered class_name, or res:// GDScript path.", {"resource_type": resource_type}, ["Import the script in Godot, or pass its res:// path as resource_type."])
+		var script: Script = load(script_path) as Script
+		if script == null:
+			return ResponseFactory.error("INVALID_RESOURCE_TYPE", "Resource script cannot be instantiated.", {"resource_type": resource_type}, [])
+		var instance = script.new()
+		if not instance is Resource:
+			if instance is Node:
+				instance.free()
+			return ResponseFactory.error("INVALID_RESOURCE_TYPE", "The script must extend Resource.", {"resource_type": resource_type}, [])
+		resource = instance as Resource
 	var properties: Dictionary = params.get("properties", {})
 	if properties.size() > 64:
 		return ResponseFactory.error("TOO_MANY_PROPERTIES", "At most 64 initial properties are supported.", {}, [])
@@ -219,7 +252,7 @@ func create_external_resource(params: Dictionary) -> Dictionary:
 	var save_error := ResourceSaver.save(resource, resource_path)
 	if save_error != OK:
 		return ResponseFactory.error("RESOURCE_SAVE_FAILED", "Could not save the resource.", {"error_code": save_error}, [])
-	return ResponseFactory.success({"path": resource_path, "resource_type": resource.get_class(), "properties": properties.keys()}, "Resource created.")
+	return ResponseFactory.success({"path": resource_path, "resource_type": resource_type, "script_path": resource.get_script().resource_path if resource.get_script() != null else "", "properties": properties.keys()}, "Resource created.")
 
 
 func add_property_animation(params: Dictionary) -> Dictionary:

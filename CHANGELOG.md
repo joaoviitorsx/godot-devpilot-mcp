@@ -6,6 +6,15 @@ All notable changes to this project follow [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+### Added
+- Runtime bridge registered as a project autoload during installation. Input, running scene inspection, FPS and game screenshots now operate in the game process through Godot's debugger session.
+- Installation doctor checks the runtime autoload and the Capi nas Nuvens dogfood project has an end-to-end MCP playtest.
+
+### Fixed
+- Runtime tools no longer report the edited scene or editor input as game state; unavailable debugger sessions return explicit errors.
+- Custom `Resource` scripts can be created by class name or script path, with safe integral JSON values.
+- Input and autoload inference reads saved project settings, and long input actions receive a matching timeout budget.
+
 ---
 
 ## [2.9.0] — 2026-10-24 — Descoberta da engine e práticas de código

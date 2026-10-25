@@ -9,8 +9,6 @@ const NodeTools = preload("res://addons/godot_devpilot_mcp/tools/node_tools.gd")
 const ScriptTools = preload("res://addons/godot_devpilot_mcp/tools/script_tools.gd")
 const DebugTools = preload("res://addons/godot_devpilot_mcp/tools/debug_tools.gd")
 const ScreenshotTools = preload("res://addons/godot_devpilot_mcp/tools/screenshot_tools.gd")
-const InputTools = preload("res://addons/godot_devpilot_mcp/tools/input_tools.gd")
-const RuntimeTools = preload("res://addons/godot_devpilot_mcp/tools/runtime_tools.gd")
 const ExtendedTools = preload("res://addons/godot_devpilot_mcp/tools/extended_tools.gd")
 const BetterTileEditorTools = preload("res://addons/godot_devpilot_mcp/tools/better_tile_editor_tools.gd")
 const CapabilityMethods = preload("res://addons/godot_devpilot_mcp/core/capability_methods.gd")
@@ -26,11 +24,16 @@ var _node_tools: NodeTools
 var _script_tools: ScriptTools
 var _debug_tools: DebugTools
 var _screenshot_tools: ScreenshotTools
-var _input_tools: InputTools
-var _runtime_tools: RuntimeTools
 var _extended_tools: ExtendedTools
 var _better_tile_editor_tools: BetterTileEditorTools
 var _resource_tools: ResourceTools
+var runtime_bridge
+
+
+func _runtime_request(method: String, params: Dictionary) -> Dictionary:
+	if runtime_bridge == null:
+		return ResponseFactory.error("RUNTIME_BRIDGE_UNAVAILABLE", "Runtime debugger bridge is not initialized.")
+	return await runtime_bridge.request(method, params)
 
 
 func setup(p_editor_interface, p_undo_redo = null) -> void:
@@ -53,12 +56,6 @@ func setup(p_editor_interface, p_undo_redo = null) -> void:
 
 	_screenshot_tools = ScreenshotTools.new()
 	_screenshot_tools.setup(editor_interface)
-
-	_input_tools = InputTools.new()
-	_input_tools.setup(editor_interface)
-
-	_runtime_tools = RuntimeTools.new()
-	_runtime_tools.setup(editor_interface, _input_tools)
 
 	_extended_tools = ExtendedTools.new()
 	_extended_tools.setup(editor_interface, _undo_service)
@@ -190,47 +187,47 @@ func dispatch(request: Variant) -> Dictionary:
 		"debug.is_running":
 			return Protocol.success_envelope(request_id, _debug_tools.is_running(params))
 		"screenshot.take_game":
-			return Protocol.success_envelope(request_id, _screenshot_tools.take_game_screenshot(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"screenshot.take_editor":
 			return Protocol.success_envelope(request_id, _screenshot_tools.take_editor_screenshot(params))
 		"screenshot.get_viewport":
 			return Protocol.success_envelope(request_id, _screenshot_tools.get_viewport_image(params))
 		"input.press_action":
-			return Protocol.success_envelope(request_id, await _input_tools.press_action(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.release_action":
-			return Protocol.success_envelope(request_id, _input_tools.release_action(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.press_key":
-			return Protocol.success_envelope(request_id, await _input_tools.press_key(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.release_key":
-			return Protocol.success_envelope(request_id, _input_tools.release_key(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.tap_key":
-			return Protocol.success_envelope(request_id, _input_tools.tap_key(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.mouse_move":
-			return Protocol.success_envelope(request_id, _input_tools.mouse_move(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.mouse_click":
-			return Protocol.success_envelope(request_id, _input_tools.mouse_click(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.mouse_drag":
-			return Protocol.success_envelope(request_id, _input_tools.mouse_drag(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"input.run_sequence":
-			return Protocol.success_envelope(request_id, await _input_tools.run_input_sequence(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.get_tree":
-			return Protocol.success_envelope(request_id, _runtime_tools.get_tree_(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.get_node_properties":
-			return Protocol.success_envelope(request_id, _runtime_tools.get_node_properties(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.set_node_property":
-			return Protocol.success_envelope(request_id, _runtime_tools.set_node_property(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.get_fps":
-			return Protocol.success_envelope(request_id, _runtime_tools.get_fps(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.get_process_stats":
-			return Protocol.success_envelope(request_id, _runtime_tools.get_process_stats(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.find_node":
-			return Protocol.success_envelope(request_id, _runtime_tools.find_node_(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.get_current_camera":
-			return Protocol.success_envelope(request_id, _runtime_tools.get_current_camera(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.find_ui_element":
-			return Protocol.success_envelope(request_id, _runtime_tools.find_ui_element(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		"runtime.click_ui_by_text":
-			return Protocol.success_envelope(request_id, _runtime_tools.click_ui_by_text(params))
+			return Protocol.success_envelope(request_id, await _runtime_request(method, params))
 		# Phase 17 — execute script
 		"script.execute_editor":
 			return Protocol.success_envelope(request_id, _extended_tools.execute_editor_script(params))
@@ -541,6 +538,7 @@ func _project_get_selected_nodes(_params: Dictionary) -> Dictionary:
 
 func _project_get_input_map(_params: Dictionary) -> Dictionary:
 	var actions: Array[Dictionary] = []
+	var seen: Dictionary = {}
 	for action_name in InputMap.get_actions():
 		var events: Array[String] = []
 		for event in InputMap.action_get_events(action_name):
@@ -550,6 +548,23 @@ func _project_get_input_map(_params: Dictionary) -> Dictionary:
 			"deadzone": InputMap.action_get_deadzone(action_name),
 			"events": events
 		})
+		seen[str(action_name)] = actions.size() - 1
+	# project.godot can be edited by a CLI or an AI while the editor is open.
+	# InputMap in the editor process is then stale; read the saved settings too.
+	var project_config := ConfigFile.new()
+	if project_config.load("res://project.godot") == OK and project_config.has_section("input"):
+		for action_name in project_config.get_section_keys("input"):
+			var setting: Variant = project_config.get_value("input", action_name, {})
+			if not setting is Dictionary:
+				continue
+			var events: Array[String] = []
+			for event in setting.get("events", []):
+				events.append(str(event))
+			var item := {"name": str(action_name), "deadzone": float(setting.get("deadzone", 0.5)), "events": events}
+			if seen.has(str(action_name)):
+				actions[int(seen[str(action_name)])] = item
+			else:
+				actions.append(item)
 	return ResponseFactory.success(
 		{"actions": actions, "count": actions.size()},
 		"Input map loaded."

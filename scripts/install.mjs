@@ -255,6 +255,7 @@ function enableEditorPlugin(projectRoot) {
   const pluginPath = "res://addons/godot_devpilot_mcp/plugin.cfg";
   const section = /^\[editor_plugins\][ \t]*$(?:\r?\n)?/m.exec(original);
   let updated;
+  let manualPluginActivation = false;
   if (!section) {
     updated = `${original}${original.endsWith("\n") ? "" : lineEnding}${lineEnding}[editor_plugins]${lineEnding}${lineEnding}enabled=PackedStringArray("${pluginPath}")${lineEnding}`;
   } else {
@@ -267,12 +268,13 @@ function enableEditorPlugin(projectRoot) {
     if (!enabled) {
       if (/^enabled\s*=/m.test(body)) {
         console.warn("Godot plugin activation: unsupported enabled setting; enable Godot DevPilot MCP in Project Settings > Plugins.");
-        return;
+        updated = original;
+        manualPluginActivation = true;
+      } else {
+        updated = `${original.slice(0, end)}enabled=PackedStringArray("${pluginPath}")${lineEnding}${original.slice(end)}`;
       }
-      updated = `${original.slice(0, end)}enabled=PackedStringArray("${pluginPath}")${lineEnding}${original.slice(end)}`;
     } else if (enabled[1].includes(`"${pluginPath}"`)) {
-      console.log("Godot plugin activation: already enabled");
-      return;
+      updated = original;
     } else {
       const value = enabled[1].trim();
       const replacement = `enabled=PackedStringArray(${value ? `${value}, ` : ""}"${pluginPath}")`;
@@ -280,12 +282,30 @@ function enableEditorPlugin(projectRoot) {
       updated = `${original.slice(0, offset)}${replacement}${original.slice(offset + enabled[0].length)}`;
     }
   }
+  const bridgePath = "*res://addons/godot_devpilot_mcp/core/runtime_bridge.gd";
+  const autoload = /^\[autoload\][ \t]*$(?:\r?\n)?/m.exec(updated);
+  if (!autoload) {
+    updated += `${updated.endsWith("\n") ? "" : lineEnding}${lineEnding}[autoload]${lineEnding}${lineEnding}DevPilotRuntimeBridge="${bridgePath}"${lineEnding}`;
+  } else {
+    const start = autoload.index + autoload[0].length;
+    const next = /^\[[^\]\r\n]+\]/gm;
+    next.lastIndex = start;
+    const end = next.exec(updated)?.index ?? updated.length;
+    const body = updated.slice(start, end);
+    const entry = /^DevPilotRuntimeBridge[ \t]*=[ \t]*"([^"]+)"/m.exec(body);
+    if (entry && entry[1] !== bridgePath) throw new Error("DevPilotRuntimeBridge autoload already points to a different script.");
+    if (!entry) updated = `${updated.slice(0, end)}DevPilotRuntimeBridge="${bridgePath}"${lineEnding}${updated.slice(end)}`;
+  }
+  if (updated === original) {
+    console.log(manualPluginActivation ? "Game runtime bridge: already configured; activate the editor plugin manually." : "Godot plugin activation: already enabled");
+    return;
+  }
   const backupDir = path.join(projectRoot, ".godot_mcp", "install-backups");
   mkdirSync(backupDir, { recursive: true });
   const backup = path.join(backupDir, `${new Date().toISOString().replace(/[:.]/g, "-")}-project.godot`);
   copyFileSync(file, backup, 1);
   writeFileSync(file, updated);
-  console.log(`Godot plugin activation: enabled (project.godot backup: ${backup})`);
+  console.log(manualPluginActivation ? `Game runtime bridge: configured (project.godot backup: ${backup}); activate the editor plugin manually.` : `Godot plugin activation: enabled (project.godot backup: ${backup})`);
 }
 
 function main() {

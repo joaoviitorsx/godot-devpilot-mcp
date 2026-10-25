@@ -58,6 +58,14 @@ func _mouse_button_index(name: String) -> int:
 
 func _emit_action(action_name: String, pressed: bool) -> Dictionary:
 	if not InputMap.has_action(action_name):
+		var project_config := ConfigFile.new()
+		if project_config.load("res://project.godot") == OK and project_config.has_section_key("input", action_name):
+			return ResponseFactory.error(
+				"EDITOR_INPUT_MAP_STALE",
+				"Action exists in project.godot but the editor InputMap has not reloaded it.",
+				{"action": action_name},
+				["Restart the Godot editor after changing project.godot outside the editor."]
+			)
 		return ResponseFactory.error(
 			"INPUT_ACTION_NOT_FOUND",
 			"Input action does not exist.",
@@ -185,6 +193,7 @@ func tap_key(params: Dictionary) -> Dictionary:
 	var press_err := _emit_key(keycode, true)
 	if not press_err.is_empty():
 		return press_err
+	await Engine.get_main_loop().process_frame
 	_emit_key(keycode, false)
 	return ResponseFactory.success({"keycode": keycode}, "Key tapped.")
 
@@ -208,6 +217,7 @@ func mouse_click(params: Dictionary) -> Dictionary:
 	var button_name := str(params.get("button", "left"))
 	var button := _mouse_button_index(button_name)
 	_emit_mouse_button(x, y, button, true)
+	await Engine.get_main_loop().process_frame
 	_emit_mouse_button(x, y, button, false)
 	return ResponseFactory.success({"x": x, "y": y, "button": button_name}, "Mouse clicked.")
 
@@ -225,7 +235,9 @@ func mouse_drag(params: Dictionary) -> Dictionary:
 
 	_emit_mouse_motion(fx, fy)
 	_emit_mouse_button(fx, fy, button, true)
+	await Engine.get_main_loop().process_frame
 	_emit_mouse_motion(tx, ty)
+	await Engine.get_main_loop().process_frame
 	_emit_mouse_button(tx, ty, button, false)
 
 	return ResponseFactory.success(
@@ -257,7 +269,9 @@ func run_input_sequence(params: Dictionary) -> Dictionary:
 					await Engine.get_main_loop().create_timer(ap_dur / 1000.0).timeout
 					_emit_action(str(step.get("action", "")), false)
 			"action_release":
-				_emit_action(str(step.get("action", "")), false)
+				var ar_err := _emit_action(str(step.get("action", "")), false)
+				if not ar_err.is_empty():
+					return ar_err
 			"key_press":
 				var kp_err := _emit_key(str(step.get("keycode", "")), true)
 				if not kp_err.is_empty():
@@ -267,11 +281,14 @@ func run_input_sequence(params: Dictionary) -> Dictionary:
 					await Engine.get_main_loop().create_timer(kp_dur / 1000.0).timeout
 					_emit_key(str(step.get("keycode", "")), false)
 			"key_release":
-				_emit_key(str(step.get("keycode", "")), false)
+				var kr_err := _emit_key(str(step.get("keycode", "")), false)
+				if not kr_err.is_empty():
+					return kr_err
 			"key_tap":
 				var kt_err := _emit_key(str(step.get("keycode", "")), true)
 				if not kt_err.is_empty():
 					return kt_err
+				await Engine.get_main_loop().process_frame
 				_emit_key(str(step.get("keycode", "")), false)
 			"mouse_move":
 				_emit_mouse_motion(float(step.get("x", 0.0)), float(step.get("y", 0.0)))
@@ -280,6 +297,7 @@ func run_input_sequence(params: Dictionary) -> Dictionary:
 				var mx := float(step.get("x", 0.0))
 				var my := float(step.get("y", 0.0))
 				_emit_mouse_button(mx, my, mc_btn, true)
+				await Engine.get_main_loop().process_frame
 				_emit_mouse_button(mx, my, mc_btn, false)
 			"wait":
 				var w_dur := int(step.get("duration_ms", 0))

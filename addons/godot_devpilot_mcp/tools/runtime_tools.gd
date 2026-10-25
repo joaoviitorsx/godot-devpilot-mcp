@@ -103,7 +103,7 @@ func get_tree_(params: Dictionary) -> Dictionary:
 	var root: Node = _scene_root()
 	if root == null:
 		return ResponseFactory.error("NO_SCENE_OPEN", "No scene currently open.", {}, [])
-	var max_depth: int = int(params.get("max_depth", 10))
+	var max_depth: int = clampi(int(params.get("max_depth", 10)), 0, 12)
 	var include_props: bool = bool(params.get("include_properties", false))
 	var tree := _serialize_node(root, 0, max_depth, include_props)
 	return ResponseFactory.success(
@@ -129,8 +129,13 @@ func get_node_properties(params: Dictionary) -> Dictionary:
 	if requested.is_empty():
 		props = _common_properties(node)
 	else:
+		var available := {}
+		for descriptor in node.get_property_list():
+			available[str(descriptor.get("name", ""))] = true
 		for p in requested:
 			var key := str(p)
+			if not available.has(key):
+				return ResponseFactory.error("INVALID_PROPERTY", "Property not found on runtime node.", {"node_path": node_path, "property": key})
 			props[key] = _read_property(node, key)
 	return ResponseFactory.success(
 		{"node_path": node_path, "type": node.get_class(), "properties": props},
@@ -167,9 +172,20 @@ func set_node_property(params: Dictionary) -> Dictionary:
 			{"node_path": node_path, "property": property},
 			["Use godot_get_runtime_node_properties to inspect available properties."]
 		)
+	var current: Variant = node.get(property)
+	if typeof(current) == TYPE_VECTOR2 and typeof(value) == TYPE_DICTIONARY and value.has("x") and value.has("y"):
+		value = Vector2(float(value["x"]), float(value["y"]))
+	elif typeof(current) == TYPE_VECTOR3 and typeof(value) == TYPE_DICTIONARY and value.has("x") and value.has("y") and value.has("z"):
+		value = Vector3(float(value["x"]), float(value["y"]), float(value["z"]))
+	elif typeof(current) == TYPE_COLOR and typeof(value) == TYPE_STRING and Color.html_is_valid(value):
+		value = Color.html(value)
+	elif typeof(current) == TYPE_INT and typeof(value) == TYPE_FLOAT and value >= -9007199254740991.0 and value <= 9007199254740991.0 and value == floorf(value):
+		value = int(value)
+	elif typeof(current) != typeof(value) and not (typeof(current) == TYPE_FLOAT and typeof(value) == TYPE_INT):
+		return ResponseFactory.error("INVALID_PROPERTY_VALUE", "Value type does not match runtime property.", {"property": property, "expected_type": type_string(typeof(current))})
 	node.set(property, value)
 	return ResponseFactory.success(
-		{"node_path": node_path, "property": property, "value": value},
+		{"node_path": node_path, "property": property, "value": node.get(property)},
 		"Runtime property set (will revert when game stops)."
 	)
 
@@ -227,7 +243,7 @@ func find_node_(params: Dictionary) -> Dictionary:
 	var name_q: String = str(params.get("name", "")).to_lower()
 	var type_q: String = str(params.get("type", ""))
 	var group_q: String = str(params.get("group", ""))
-	var limit: int = int(params.get("limit", 50))
+	var limit: int = clampi(int(params.get("limit", 50)), 1, 200)
 
 	var matches: Array[Node] = []
 	var matcher := func(n: Node) -> bool:
@@ -322,6 +338,8 @@ func find_ui_element(params: Dictionary) -> Dictionary:
 	var matcher := func(n: Node) -> bool:
 		if not (n is Control):
 			return false
+		if not (n as Control).is_visible_in_tree():
+			return false
 		var ok := true
 		if not type_q.is_empty():
 			ok = ok and (n.get_class() == type_q or n.is_class(type_q))
@@ -381,7 +399,9 @@ func click_ui_by_text(params: Dictionary) -> Dictionary:
 
 	var first: Dictionary = elements[0]
 	var center: Dictionary = first.get("center", {"x": 0, "y": 0})
-	_input_tools.mouse_click({"x": center.x, "y": center.y, "button": "left"})
+	var click_result: Dictionary = await _input_tools.mouse_click({"x": center.x, "y": center.y, "button": "left"})
+	if not click_result.get("ok", false):
+		return click_result
 	return ResponseFactory.success(
 		{"clicked": first.get("path", ""), "text": text, "center": center},
 		"UI element clicked."

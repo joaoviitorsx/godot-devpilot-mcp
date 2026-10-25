@@ -27,6 +27,7 @@ func _enter_tree() -> void:
 			_runtime_capture = RuntimeCapture.new()
 			_runtime_capture.event_sink = Callable(debug_tools, "append_runtime_event")
 			add_debugger_plugin(_runtime_capture)
+			rpc_server.dispatcher.runtime_bridge = _runtime_capture
 
 
 func _exit_tree() -> void:

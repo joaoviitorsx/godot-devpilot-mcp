@@ -81,6 +81,14 @@ describe("registerInputTools — delegation to plugin methods", () => {
     expect(call[1]).toEqual({ action: "jump", duration_ms: 0 });
   });
 
+  it("extends the bridge timeout for held input", async () => {
+    const godot = makeGodot();
+    const server = makeServer();
+    registerInputTools(server as never, godot, makeConfig(false) as never);
+    await server.run("godot_press_action", { action: "jump", duration_ms: 7000 });
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls[0][2]).toEqual({ timeoutMs: 12000 });
+  });
+
   it("godot_release_action calls input.release_action", async () => {
     const godot = makeGodot();
     const server = makeServer();
@@ -155,5 +163,16 @@ describe("registerInputTools — delegation to plugin methods", () => {
     const call = (godot.call as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[0]).toBe("input.run_sequence");
     expect(call[1].sequence).toEqual(sequence);
+  });
+
+  it("budgets all waits in an input sequence", async () => {
+    const godot = makeGodot();
+    const server = makeServer();
+    registerInputTools(server as never, godot, makeConfig(false) as never);
+    await server.run("godot_run_input_sequence", { sequence: [
+      { type: "action_press", action: "jump", duration_ms: 4000 },
+      { type: "wait", duration_ms: 3000 }
+    ] });
+    expect((godot.call as ReturnType<typeof vi.fn>).mock.calls[0][2]).toEqual({ timeoutMs: 12000 });
   });
 });

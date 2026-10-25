@@ -196,7 +196,7 @@ export function registerPhase19Tools(server: McpServer, godot: GodotClient, conf
     "Create a typed .tres resource. Existing resources require overwrite=true and receive a recoverable backup.",
     {
       path: z.string().describe("res:// output path (must end in .tres)."),
-      resource_type: z.string().describe("ClassDB resource type e.g. 'Environment', 'PhysicsMaterial', 'AudioStreamWAV'."),
+      resource_type: z.string().describe("Built-in Resource class (e.g. Environment), registered GDScript class_name, or res:// path to a Resource script."),
       properties: z.record(z.string(), z.unknown()).optional().describe("Initial property values."),
       overwrite: z.boolean().optional(),
       dry_run: z.boolean().optional()

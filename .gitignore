@@ -3,6 +3,7 @@ dist/
 .godot/
 .godot_mcp/
 *.gd.uid
+/logos/**/*.import
 npm-debug.log*
 *.tmp
 

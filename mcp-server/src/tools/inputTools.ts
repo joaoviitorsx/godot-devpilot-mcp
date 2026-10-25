@@ -14,12 +14,12 @@ function toMcpResult(response: ToolResponse): CallToolResult {
   };
 }
 
-async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}): Promise<ToolResponse> {
+async function callAfterConnect(godot: GodotClient, method: string, params: unknown = {}, timeoutMs?: number): Promise<ToolResponse> {
   if (!godot.getStatus().connected) {
     const connection = await godot.connect();
     if (!connection.ok) return connection;
   }
-  return godot.call(method, params);
+  return godot.call(method, params, { timeoutMs });
 }
 
 function ctx(toolName: string, config: ServerConfig) {
@@ -50,7 +50,7 @@ export function registerInputTools(server: McpServer, godot: GodotClient, config
     },
     async ({ action, duration_ms }) => toMcpResult(
       await executeToolSafely(ctx("godot_press_action", config), async (): Promise<ToolResponse> =>
-        callAfterConnect(godot, "input.press_action", { action, duration_ms: duration_ms ?? 0 })
+        callAfterConnect(godot, "input.press_action", { action, duration_ms: duration_ms ?? 0 }, Math.max(config.godot.timeoutMs, (duration_ms ?? 0) + 5000))
       )
     )
   );
@@ -77,7 +77,7 @@ export function registerInputTools(server: McpServer, godot: GodotClient, config
     },
     async ({ keycode, duration_ms }) => toMcpResult(
       await executeToolSafely(ctx("godot_press_key", config), async (): Promise<ToolResponse> =>
-        callAfterConnect(godot, "input.press_key", { keycode, duration_ms: duration_ms ?? 0 })
+        callAfterConnect(godot, "input.press_key", { keycode, duration_ms: duration_ms ?? 0 }, Math.max(config.godot.timeoutMs, (duration_ms ?? 0) + 5000))
       )
     )
   );
@@ -162,7 +162,7 @@ export function registerInputTools(server: McpServer, godot: GodotClient, config
     { sequence: z.array(SEQUENCE_STEP).min(1).describe("Ordered list of input steps.") },
     async ({ sequence }) => toMcpResult(
       await executeToolSafely(ctx("godot_run_input_sequence", config), async (): Promise<ToolResponse> =>
-        callAfterConnect(godot, "input.run_sequence", { sequence })
+        callAfterConnect(godot, "input.run_sequence", { sequence }, Math.max(config.godot.timeoutMs, sequence.reduce((total, step) => total + ("duration_ms" in step ? (step.duration_ms ?? 0) : 0), 0) + 5000))
       )
     )
   );

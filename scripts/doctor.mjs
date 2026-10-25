@@ -78,6 +78,12 @@ async function main() {
   const pluginSection = sectionTail.slice(0, nextSection?.index ?? sectionTail.length);
   const active = /^enabled\s*=\s*PackedStringArray\([^\r\n]*"res:\/\/addons\/godot_devpilot_mcp\/plugin.cfg"/m.test(pluginSection);
   add("plugin activation", active, active ? "Enabled in project.godot." : "Enable the addon in Project Settings > Plugins.");
+  const autoloadHeader = /^\[autoload\][ \t]*$/m.exec(projectText);
+  const autoloadTail = autoloadHeader ? projectText.slice(autoloadHeader.index + autoloadHeader[0].length) : "";
+  const nextAutoloadSection = /^\[[^\]]+\][ \t]*$/m.exec(autoloadTail);
+  const autoloadSection = autoloadTail.slice(0, nextAutoloadSection?.index ?? autoloadTail.length);
+  const runtimeBridge = /^DevPilotRuntimeBridge\s*=\s*"\*res:\/\/addons\/godot_devpilot_mcp\/core\/runtime_bridge.gd"[ \t]*$/m.test(autoloadSection);
+  add("game runtime bridge", runtimeBridge && regularFile(path.join(projectRoot, "addons", "godot_devpilot_mcp", "core", "runtime_bridge.gd")), runtimeBridge ? "Runtime autoload configured." : "Runtime autoload missing; rerun godopilot and restart Godot.");
 
   const name = serverName(projectRoot);
   const client = checkClient(projectRoot, name, runtimeEntry);
